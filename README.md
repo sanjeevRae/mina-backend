@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Comprehensive Telemedicine Backend
 
 A fully functional, production-ready telemedicine backend built with FastAPI that remains completely free indefinitely by leveraging Render's free tier and other free services strategically.
@@ -464,3 +465,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ---
 
 **Built with ❤️ for the healthcare community - Always free, always improving!**
+=======
+# mina-backend
+>>>>>>> ee492ecf88feeff010fdb603430fde67087b7b25
