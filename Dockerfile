@@ -26,7 +26,7 @@ RUN apt-get update && apt-get install -y \
 # No need to copy .local or set PATH since packages are installed system-wide
 
 # Copy application code
-COPY . .
+RUN pip install --no-cache-dir -r requirements.txt
 
 # Create directories for uploads, models, and data
 RUN mkdir -p uploads models data/synthetic archives
@@ -39,6 +39,8 @@ USER appuser
 # Expose port
 EXPOSE 8000
 
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
 # Health check
 HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
     CMD python -c "import requests; requests.get('http://localhost:8000/health')" || exit 1
