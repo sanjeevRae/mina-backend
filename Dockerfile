@@ -14,6 +14,9 @@ RUN apt-get update && apt-get install -y \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Debug: List contents of /app to verify app/ is present
+RUN ls -l /app
+
 # Production stage
 FROM python:3.11-slim
 
