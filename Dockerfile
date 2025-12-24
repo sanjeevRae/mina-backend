@@ -26,7 +26,7 @@ RUN apt-get update && apt-get install -y \
 
 # No need to copy .local or set PATH since packages are installed system-wide
 
-# Copy application code
+COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy requirements.txt before installing dependencies
@@ -40,8 +40,8 @@ RUN adduser --disabled-password --gecos '' appuser && \
     chown -R appuser:appuser /app
 USER appuser
 
-# Expose port
-EXPOSE 8000
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
 
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
