@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "114741793730",
+    "project_id": "mobile-mina",
+    "storage_bucket": "mobile-mina.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:114741793730:android:eb45303a1acb0527613c5b",
+        "android_client_info": {
+          "package_name": "com.app.mina"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDGRlh4OLaEcQzAM5wtrpEMiGNQB8ir3yk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
