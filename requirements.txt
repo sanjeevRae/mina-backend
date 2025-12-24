@@ -51,7 +51,6 @@ httpx==0.25.2
 python-dateutil==2.8.2
 
 # CORS
-python-cors==1.0.1
 
 # Testing
 pytest==7.4.3
