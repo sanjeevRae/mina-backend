@@ -10,6 +10,7 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements and install Python dependencies
+# Copy requirements.txt before installing dependencies
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
@@ -28,6 +29,9 @@ RUN apt-get update && apt-get install -y \
 # Copy application code
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Copy requirements.txt before installing dependencies
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
 # Create directories for uploads, models, and data
 RUN mkdir -p uploads models data/synthetic archives
 
