@@ -28,8 +28,7 @@ RUN apt-get update && apt-get install -y \
     libpq5 \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy only the app directory and required files
-COPY app /app
+COPY app /app/app
 COPY requirements.txt .
 COPY alembic.ini .
 COPY setup_db.py .
@@ -57,5 +56,5 @@ HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
 
 RUN echo '--- /app contents ---' && ls -l /app && echo '--- /app/app contents ---' && ls -l /app/app || true
 
-# Start the application (main.py is now at /app/main.py)
-CMD ["python", "-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Start the application (main.py is now at /app/app/main.py)
+CMD ["python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
