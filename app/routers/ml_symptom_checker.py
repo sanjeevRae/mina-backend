@@ -5,8 +5,8 @@ from sqlalchemy.orm import Session
 
 from database import get_db
 from auth import get_current_user
-from ..models.user import User
-from ..models.ml_models import SymptomChecker, MLModel
+from app.models.user import User
+from app.models.ml_models import SymptomChecker, MLModel
 from schemas.ml_models import (
     SymptomCheckerStart, SymptomCheckerSession, SymptomCheckerResult,
     SymptomCheckerFeedback, MLModelInfo, ModelTrainingRequest

@@ -6,8 +6,8 @@ from sqlalchemy import and_, or_
 
 from database import get_db
 from auth import get_current_user, require_doctor, require_patient
-from ..models.user import User, UserRole
-from ..models.appointment import Appointment, AppointmentStatus, AppointmentType
+from app.models.user import User, UserRole
+from app.models.appointment import Appointment, AppointmentStatus, AppointmentType
 from schemas.appointment import (
     AppointmentCreate, AppointmentResponse, AppointmentUpdate,
     AppointmentStatusUpdate, VideoCallStart, VideoCallJoin
