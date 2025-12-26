@@ -7,9 +7,9 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 import redis.asyncio as redis
 from sqlalchemy.orm import Session
 
-from app.config import settings
-from app.database import get_db
-from app.models.user import User
+from config import settings
+from database import get_db
+from models.user import User
 
 # Password hashing
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
