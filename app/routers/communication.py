@@ -4,15 +4,15 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import and_, or_
 
-from app.database import get_db
-from app.auth import get_current_user
-from app.models.user import User, UserRole
-from app.models.communication import ChatMessage, Notification
-from app.schemas.communication import (
+from database import get_db
+from auth import get_current_user
+from models.user import User, UserRole
+from models.communication import ChatMessage, Notification
+from schemas.communication import (
     ChatMessageCreate, ChatMessageResponse, ChatMessageMarkRead,
     NotificationCreate, NotificationResponse, NotificationMarkRead
 )
-from app.services.websocket_service import websocket_service
+from services.websocket_service import websocket_service
 
 router = APIRouter(prefix="/communication", tags=["communication"])
 

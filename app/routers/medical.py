@@ -4,11 +4,11 @@ from sqlalchemy import and_, or_
 from typing import List, Optional
 from datetime import datetime, date
 
-from app.database import get_db
-from app.auth import get_current_user, get_current_active_user
-from app.models.user import User
-from app.models.medical import MedicalRecord, Prescription
-from app.schemas.medical import (
+from database import get_db
+from auth import get_current_user, get_current_active_user
+from models.user import User
+from models.medical import MedicalRecord, Prescription
+from schemas.medical import (
     MedicalRecordCreate, 
     MedicalRecordUpdate, 
     MedicalRecordResponse,

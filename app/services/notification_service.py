@@ -8,10 +8,10 @@ import logging
 from datetime import datetime, timedelta
 import redis.asyncio as redis
 
-from app.config import settings
-from app.database import get_db, get_redis
-from app.models.communication import Notification
-from app.schemas.communication import NotificationCreate
+from config import settings
+from database import get_db, get_redis
+from models.communication import Notification
+from schemas.communication import NotificationCreate
 
 logger = logging.getLogger(__name__)
 
