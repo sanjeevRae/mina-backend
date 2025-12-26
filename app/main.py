@@ -11,14 +11,14 @@ import os
 
 from pathlib import Path
 
-from app.config import settings
-from app.database import init_db, engine, Base
-from app.routers import auth
-from app.routers import appointments
-from app.routers import medical
-from app.routers import ml_symptom_checker
-from app.routers import communication
-from app.routers import websocket
+from config import settings
+from database import init_db, engine, Base
+from routers import auth
+from routers import appointments
+from routers import medical
+from routers import ml_symptom_checker
+from routers import communication
+from routers import websocket
 
 # Configure logging
 logging.basicConfig(
@@ -57,7 +57,7 @@ async def lifespan(app: FastAPI):
 
 async def start_background_tasks():
     """Start background tasks"""
-    from app.services.notification_service import notification_service
+    from services.notification_service import notification_service
     
     # Start scheduled notification processor
     asyncio.create_task(process_scheduled_notifications())
@@ -72,8 +72,8 @@ async def process_scheduled_notifications():
     """Process scheduled notifications"""
     import asyncio
     from datetime import datetime
-    from app.database import get_redis, get_db
-    from app.models.communication import Notification
+    from database import get_redis, get_db
+    from models.communication import Notification
     import json
     
     while True:
@@ -101,7 +101,7 @@ async def process_scheduled_notifications():
                     ).first()
                     
                     if notification and not notification.is_sent:
-                        from app.services.notification_service import notification_service
+                        from services.notification_service import notification_service
                         await notification_service.send_notification(notification)
                     
                     # Remove from scheduled set
@@ -122,9 +122,9 @@ async def schedule_model_retraining():
     """Schedule periodic model retraining"""
     import asyncio
     from datetime import datetime, timedelta
-    from app.services.ml_service import get_symptom_checker_model
-    from app.database import get_db
-    from app.models.ml_models import MLModel
+    from services.ml_service import get_symptom_checker_model
+    from database import get_db
+    from models.ml_models import MLModel
     
     while True:
         try:
@@ -277,7 +277,7 @@ async def global_exception_handler(request: Request, exc: Exception):
 async def rate_limiting_middleware(request: Request, call_next):
     """Basic rate limiting middleware using Redis"""
     try:
-        from app.database import get_redis
+        from database import get_redis
         import time
         
         # Skip rate limiting for health checks and static files

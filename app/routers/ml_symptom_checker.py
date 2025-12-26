@@ -3,15 +3,15 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 
-from app.database import get_db
-from app.auth import get_current_user
-from app.models.user import User
-from app.models.ml_models import SymptomChecker, MLModel
-from app.schemas.ml_models import (
+from database import get_db
+from auth import get_current_user
+from models.user import User
+from models.ml_models import SymptomChecker, MLModel
+from schemas.ml_models import (
     SymptomCheckerStart, SymptomCheckerSession, SymptomCheckerResult,
     SymptomCheckerFeedback, MLModelInfo, ModelTrainingRequest
 )
-from app.services.ml_service import get_symptom_checker_model
+from services.ml_service import get_symptom_checker_model
 import uuid
 import asyncio
 import logging

@@ -9,7 +9,7 @@ from pathlib import Path
 from datetime import datetime
 import logging
 
-from app.config import settings
+from config import settings
 
 logger = logging.getLogger(__name__)
 

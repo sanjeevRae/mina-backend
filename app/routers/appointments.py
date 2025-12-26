@@ -4,16 +4,16 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import and_, or_
 
-from app.database import get_db
-from app.auth import get_current_user, require_doctor, require_patient
-from app.models.user import User, UserRole
-from app.models.appointment import Appointment, AppointmentStatus, AppointmentType
-from app.schemas.appointment import (
+from database import get_db
+from auth import get_current_user, require_doctor, require_patient
+from models.user import User, UserRole
+from models.appointment import Appointment, AppointmentStatus, AppointmentType
+from schemas.appointment import (
     AppointmentCreate, AppointmentResponse, AppointmentUpdate,
     AppointmentStatusUpdate, VideoCallStart, VideoCallJoin
 )
-from app.services.websocket_service import websocket_service
-from app.services.notification_service import notification_service
+from services.websocket_service import websocket_service
+from services.notification_service import notification_service
 import uuid
 
 router = APIRouter(prefix="/appointments", tags=["appointments"])

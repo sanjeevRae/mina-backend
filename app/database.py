@@ -5,7 +5,7 @@ from sqlalchemy.pool import StaticPool
 import redis.asyncio as redis
 from typing import Generator
 
-from app.config import settings
+from config import settings
 
 # Database Configuration
 if settings.database_url.startswith("sqlite"):
