@@ -6,7 +6,9 @@ from fastapi.staticfiles import StaticFiles
 import asyncio
 import logging
 from contextlib import asynccontextmanager
+import sys
 import os
+
 from pathlib import Path
 
 from app.config import settings
