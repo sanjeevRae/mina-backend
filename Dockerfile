@@ -22,12 +22,28 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
+
 # Install runtime dependencies
 RUN apt-get update && apt-get install -y \
     libpq5 \
     && rm -rf /var/lib/apt/lists/*
 
-COPY . .
+# Copy only the app directory and required files
+COPY app /app
+COPY requirements.txt .
+COPY alembic.ini .
+COPY setup_db.py .
+COPY start.py .
+COPY test_setup.py .
+COPY create_simple_users.py .
+COPY create_users.py .
+COPY generate_large_symptom_data.py .
+COPY train_symptom_checker.py .
+COPY firebase-service-account.json .
+COPY google-services.json .
+COPY render.yaml .
+COPY docker-compose.yml .
+COPY README.md .
 RUN pip install --no-cache-dir -r requirements.txt
 RUN mkdir -p uploads models data/synthetic archives
 
@@ -41,7 +57,5 @@ HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
 
 RUN echo '--- /app contents ---' && ls -l /app && echo '--- /app/app contents ---' && ls -l /app/app || true
 
-# Set PYTHONPATH so 'app' is importable
-ENV PYTHONPATH=/app
-# Start the application
-CMD ["python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Start the application (main.py is now at /app/main.py)
+CMD ["python", "-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
