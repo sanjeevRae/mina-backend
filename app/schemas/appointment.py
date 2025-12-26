@@ -1,7 +1,7 @@
 from pydantic import BaseModel, validator
 from typing import Optional, List, Dict
 from datetime import datetime
-from models.appointment import AppointmentStatus, AppointmentType
+from ..models.appointment import AppointmentStatus, AppointmentType
 
 
 class AppointmentBase(BaseModel):

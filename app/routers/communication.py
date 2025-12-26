@@ -6,8 +6,8 @@ from sqlalchemy import and_, or_
 
 from database import get_db
 from auth import get_current_user
-from models.user import User, UserRole
-from models.communication import ChatMessage, Notification
+from ..models.user import User, UserRole
+from ..models.communication import ChatMessage, Notification
 from schemas.communication import (
     ChatMessageCreate, ChatMessageResponse, ChatMessageMarkRead,
     NotificationCreate, NotificationResponse, NotificationMarkRead

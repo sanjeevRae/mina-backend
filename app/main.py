@@ -73,7 +73,7 @@ async def process_scheduled_notifications():
     import asyncio
     from datetime import datetime
     from database import get_redis, get_db
-    from models.communication import Notification
+    from .models.communication import Notification
     import json
     
     while True:
@@ -124,7 +124,7 @@ async def schedule_model_retraining():
     from datetime import datetime, timedelta
     from services.ml_service import get_symptom_checker_model
     from database import get_db
-    from models.ml_models import MLModel
+    from .models.ml_models import MLModel
     
     while True:
         try:
