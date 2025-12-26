@@ -13,10 +13,10 @@ from datetime import datetime, timedelta
 from pathlib import Path
 import logging
 
-from config import settings
-from database import get_db
+from app.config import settings
+from app.database import get_db
 from app.models.ml_models import SymptomCondition, SymptomChecker, MLModel
-from schemas.ml_models import SymptomInput, PatientInfo, ConditionPrediction, FollowUpQuestion
+from app.schemas.ml_models import SymptomInput, PatientInfo, ConditionPrediction, FollowUpQuestion
 
 logger = logging.getLogger(__name__)
 

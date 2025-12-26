@@ -7,9 +7,9 @@ import asyncio
 from fastapi import WebSocket, WebSocketDisconnect
 import redis.asyncio as redis
 
-from config import settings
-from database import get_redis
-from schemas.communication import WebSocketMessage, VideoCallSignal
+from app.config import settings
+from app.database import get_redis
+from app.schemas.communication import WebSocketMessage, VideoCallSignal
 
 logger = logging.getLogger(__name__)
 
