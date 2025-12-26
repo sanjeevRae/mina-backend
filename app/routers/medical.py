@@ -6,8 +6,8 @@ from datetime import datetime, date
 
 from database import get_db
 from auth import get_current_user, get_current_active_user
-from models.user import User
-from models.medical import MedicalRecord, Prescription
+from ..models.user import User
+from ..models.medical import MedicalRecord, Prescription
 from schemas.medical import (
     MedicalRecordCreate, 
     MedicalRecordUpdate, 

@@ -15,7 +15,7 @@ import logging
 
 from config import settings
 from database import get_db
-from models.ml_models import SymptomCondition, SymptomChecker, MLModel
+from .models.ml_models import SymptomCondition, SymptomChecker, MLModel
 from schemas.ml_models import SymptomInput, PatientInfo, ConditionPrediction, FollowUpQuestion
 
 logger = logging.getLogger(__name__)
