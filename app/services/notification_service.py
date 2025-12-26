@@ -10,7 +10,7 @@ import redis.asyncio as redis
 
 from config import settings
 from database import get_db, get_redis
-from .models.communication import Notification
+from app.models.communication import Notification
 from schemas.communication import NotificationCreate
 
 logger = logging.getLogger(__name__)
