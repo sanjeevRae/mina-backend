@@ -131,7 +131,7 @@ dmypy.json
 # Project specific
 *.db
 uploads/
-models/
+# models/   # Commented out to allow app/models to be tracked
 archives/
 data/
 .DS_Store
