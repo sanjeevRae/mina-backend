@@ -3,9 +3,9 @@ services:
   - type: web
     name: telemedicine-backend
     env: python
-    runtime: python-3.11.4   # current python version
-    buildCommand: pip install --upgrade pip && pip install -r requirements.txt && pip install -e .
-    startCommand: PYTHONPATH=/opt/render/project/src uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    runtime: python-3.11.4
+    buildCommand: pip install --upgrade pip && pip install -r requirements.txt
+    startCommand: python start_server.py
     envVars:
       - key: SECRET_KEY
         generateValue: true
