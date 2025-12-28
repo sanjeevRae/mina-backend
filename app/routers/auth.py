@@ -11,7 +11,7 @@ from schemas.user import (
     UserCreate, UserResponse, UserLogin, Token, TokenRefresh, 
     PasswordChange, PasswordReset, PasswordResetConfirm, UserUpdate
 )
-from config import settings
+from app.config import settings
 
 router = APIRouter(prefix="/auth", tags=["authentication"])
 security = HTTPBearer()
