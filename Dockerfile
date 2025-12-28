@@ -28,7 +28,7 @@ RUN apt-get update && apt-get install -y \
     libpq5 \
     && rm -rf /var/lib/apt/lists/*
 
-COPY app /app/app
+COPY app /app
 COPY requirements.txt .
 COPY alembic.ini .
 COPY setup_db.py .
