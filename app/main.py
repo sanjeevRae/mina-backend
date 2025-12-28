@@ -32,7 +32,7 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
     """Application lifespan events"""
     # Startup
-    logger.info("Starting Telemedicine Backend...")
+    logger.info("Starting Mina Backend...")
     
     # Initialize database
     init_db()
@@ -47,12 +47,12 @@ async def lifespan(app: FastAPI):
     # Start background tasks
     asyncio.create_task(start_background_tasks())
     
-    logger.info("Application startup complete")
+    logger.info("Mina Backend startup complete")
     
     yield
     
     # Shutdown
-    logger.info("Shutting down Telemedicine Backend...")
+    logger.info("Shutting down Mina Backend...")
 
 
 async def start_background_tasks():
@@ -180,9 +180,9 @@ async def schedule_model_retraining():
 
 # Create FastAPI app
 app = FastAPI(
-    title=settings.APP_NAME,
+    title="Mina Backend",
     version=settings.VERSION,
-    description="A comprehensive telemedicine backend built with FastAPI, featuring ML-powered symptom checking, video consultations, and complete medical record management - all running on free tier services.",
+    description="A comprehensive Mina backend built with FastAPI, featuring ML-powered symptom checking, video consultations, and complete medical record management - all running on free tier services.",
     lifespan=lifespan,
     docs_url="/docs" if settings.DEBUG else None,
     redoc_url="/redoc" if settings.DEBUG else None
@@ -233,7 +233,7 @@ async def health_check():
 async def root():
     """Root endpoint with API information"""
     return {
-        "message": "Telemedicine Backend API",
+        "message": "Mina Backend API",
         "version": settings.VERSION,
         "docs": "/docs" if settings.DEBUG else "Documentation disabled in production",
         "health": "/health",
