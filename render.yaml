@@ -1,28 +1,13 @@
 # Render deployment configuration
-# Build command: pip install -r requirements.txt
-# Start command: python -m uvicorn app.main:app --host 0.0.0.0 --port $PORT
-
 services:
   - type: web
     name: telemedicine-backend
     env: python
-    region: oregon
-    buildCommand: pip install -r requirements.txt
-    startCommand: python main.py
+    buildCommand: pip install --upgrade pip && pip install -r requirements.txt
+    startCommand: python app_start.py
     envVars:
-      - key: PYTHON_VERSION
-        value: "3.11"
       - key: SECRET_KEY
         generateValue: true
-      - key: DATABASE_URL
-        fromDatabase:
-          name: telemedicine-db
-          property: connectionString
-      - key: REDIS_URL
-        fromService:
-          type: redis
-          name: telemedicine-redis
-          property: connectionString
       - key: DEBUG
         value: "false"
 

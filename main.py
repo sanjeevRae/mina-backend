@@ -1,81 +1,79 @@
 #!/usr/bin/env python3
-"""
-Direct FastAPI app startup for Render - bypasses module import issues
-"""
 import os
 import sys
 from pathlib import Path
 
-# Get the directory this script is in
-root_dir = Path(__file__).parent.absolute()
+# Setup paths
+current_dir = Path(__file__).parent.absolute()
+sys.path.insert(0, str(current_dir))
+os.chdir(current_dir)
 
-# Add it to Python path
-if str(root_dir) not in sys.path:
-    sys.path.insert(0, str(root_dir))
+print("=" * 50)
+print("TELEMEDICINE BACKEND STARTUP")
+print("=" * 50)
+print(f"Working directory: {current_dir}")
+print(f"Python version: {sys.version}")
+print(f"PORT env var: {os.environ.get('PORT', 'Not set')}")
 
-# Set environment
-os.environ['PYTHONPATH'] = str(root_dir)
-os.chdir(root_dir)
+# Check if app directory exists
+app_dir = current_dir / "app"
+print(f"App directory exists: {app_dir.exists()}")
 
-print(f"Root directory: {root_dir}")
-print(f"Current working directory: {Path.cwd()}")
-print(f"App directory exists: {(root_dir / 'app').exists()}")
+if app_dir.exists():
+    app_files = list(app_dir.iterdir())
+    print(f"App directory contents: {[f.name for f in app_files]}")
 
-if __name__ == "__main__":
+# Try to import and start the app
+try:
+    print("\n--- Attempting to import FastAPI app ---")
+    
+    # Import FastAPI app
+    from app.main import app as fastapi_app
+    print("✅ FastAPI app imported successfully")
+    
+    # Get configuration
+    port = int(os.environ.get("PORT", 8000))
+    host = "0.0.0.0"
+    
+    print(f"Starting server on {host}:{port}")
+    
+    # Start server
+    import uvicorn
+    uvicorn.run(
+        fastapi_app,
+        host=host,
+        port=port,
+        reload=False,
+        access_log=True,
+        log_level="info"
+    )
+    
+except ImportError as e:
+    print(f"❌ Import failed: {e}")
+    print("\n--- Diagnostic Information ---")
+    print("Current directory files:")
+    for item in current_dir.iterdir():
+        print(f"  {item.name} ({'dir' if item.is_dir() else 'file'})")
+    
+    if app_dir.exists():
+        print("\nApp directory files:")
+        for item in app_dir.iterdir():
+            print(f"  {item.name} ({'dir' if item.is_dir() else 'file'})")
+    
+    print("\nPython sys.path:")
+    for i, path in enumerate(sys.path[:5]):
+        print(f"  {i}: {path}")
+    
+    # Try basic fallback
     try:
-        # Import the FastAPI app directly
-        sys.path.insert(0, str(root_dir))
-        
-        # Import app components
-        from app.main import app
-        
-        print("✓ Successfully imported FastAPI app")
-        
-        # Get port
-        port = int(os.environ.get("PORT", 8000))
-        host = "0.0.0.0"
-        
-        print(f"Starting server on {host}:{port}")
-        
-        # Start uvicorn with the app object directly (not module string)
-        import uvicorn
-        uvicorn.run(
-            app,  # Pass the app object directly instead of module string
-            host=host,
-            port=port,
-            reload=False,
-            log_level="info"
-        )
-        
-    except ImportError as e:
-        print(f"❌ Import error: {e}")
-        print("Debugging file structure:")
-        print(f"Current dir files: {list(Path('.').iterdir())}")
-        if Path('app').exists():
-            print(f"App dir files: {list(Path('app').iterdir())}")
-            
-        # Try alternative import methods
-        try:
-            import app
-            print("✓ 'app' module exists")
-            import app.main
-            print("✓ 'app.main' module exists") 
-            from app.main import app as fastapi_app
-            print("✓ FastAPI app imported successfully")
-            
-            # If we get here, start the server
-            port = int(os.environ.get("PORT", 8000))
-            import uvicorn
-            uvicorn.run(fastapi_app, host="0.0.0.0", port=port, reload=False, log_level="info")
-            
-        except Exception as e2:
-            print(f"❌ Alternative import failed: {e2}")
-            import traceback
-            traceback.print_exc()
-            sys.exit(1)
-            
-    except Exception as e:
-        print(f"❌ Startup error: {e}")
-        import traceback
-        traceback.print_exc()
+        print("\n--- Attempting fallback startup ---")
+        os.system(f"cd {current_dir} && python -m uvicorn app.main:app --host 0.0.0.0 --port {os.environ.get('PORT', 8000)}")
+    except Exception as fallback_error:
+        print(f"❌ Fallback failed: {fallback_error}")
         sys.exit(1)
+
+except Exception as e:
+    print(f"❌ Startup error: {e}")
+    import traceback
+    traceback.print_exc()
+    sys.exit(1)
