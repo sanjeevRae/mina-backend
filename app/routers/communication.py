@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import and_, or_
 
 from database import get_db
-from auth import get_current_user
+from app.auth import get_current_user
 from app.models.user import User, UserRole
 from app.models.communication import ChatMessage, Notification
 from schemas.communication import (

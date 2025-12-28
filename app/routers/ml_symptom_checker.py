@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 
 from database import get_db
-from auth import get_current_user
+from app.auth import get_current_user
 from app.models.user import User
 from app.models.ml_models import SymptomChecker, MLModel
 from schemas.ml_models import (

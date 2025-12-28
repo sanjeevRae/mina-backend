@@ -5,7 +5,7 @@ from typing import List, Optional
 from datetime import datetime, date
 
 from database import get_db
-from auth import get_current_user, get_current_active_user
+from app.auth import get_current_user, get_current_active_user
 from app.models.user import User
 from app.models.medical import MedicalRecord, Prescription
 from schemas.medical import (

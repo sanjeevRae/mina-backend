@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import and_, or_
 
 from database import get_db
-from auth import get_current_user, require_doctor, require_patient
+from app.auth import get_current_user, require_doctor, require_patient
 from app.models.user import User, UserRole
 from app.models.appointment import Appointment, AppointmentStatus, AppointmentType
 from schemas.appointment import (

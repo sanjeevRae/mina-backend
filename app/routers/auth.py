@@ -5,7 +5,7 @@ from fastapi.security import HTTPBearer
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from auth import create_access_token, create_refresh_token, verify_password, get_password_hash, verify_token, blacklist_token, get_current_user
+from app.auth import create_access_token, create_refresh_token, verify_password, get_password_hash, verify_token, blacklist_token, get_current_user
 from app.models.user import User, UserRole
 from schemas.user import (
     UserCreate, UserResponse, UserLogin, Token, TokenRefresh, 
