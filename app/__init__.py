@@ -1,1 +1,4 @@
-# Make app a package for imports
+"""
+Telemedicine Backend Application Package
+"""
+__version__ = "1.0.0"
