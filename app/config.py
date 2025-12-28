@@ -14,7 +14,7 @@ class Settings(BaseSettings):
     }
     
     # App Configuration
-    APP_NAME: str = "Telemedicine Backend"
+    APP_NAME: str = "MINA Backend"
     DEBUG: bool = False
     VERSION: str = "1.0.0"
     HOST: str = "0.0.0.0"
@@ -23,7 +23,7 @@ class Settings(BaseSettings):
     
     # Database Configuration
     DATABASE_URL: Optional[str] = None
-    SQLITE_URL: str = "sqlite:///./telemedicine.db"
+    SQLITE_URL: str = "sqlite:///./mina.db"
     
     # JWT Configuration
     SECRET_KEY: str
