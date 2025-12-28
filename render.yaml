@@ -7,7 +7,7 @@ services:
     name: telemedicine-backend
     env: python
     buildCommand: pip install -r requirements.txt
-    startCommand: python -m uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    startCommand: python run.py
     envVars:
       - key: SECRET_KEY
         generateValue: true

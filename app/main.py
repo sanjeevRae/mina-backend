@@ -57,7 +57,7 @@ async def lifespan(app: FastAPI):
 
 async def start_background_tasks():
     """Start background tasks"""
-    from services.notification_service import notification_service
+    from app.services.notification_service import notification_service
     
     # Start scheduled notification processor
     asyncio.create_task(process_scheduled_notifications())
@@ -72,7 +72,7 @@ async def process_scheduled_notifications():
     """Process scheduled notifications"""
     import asyncio
     from datetime import datetime
-    from database import get_redis, get_db
+    from app.database import get_redis, get_db
     from app.models.communication import Notification
     import json
     
@@ -101,7 +101,7 @@ async def process_scheduled_notifications():
                     ).first()
                     
                     if notification and not notification.is_sent:
-                        from services.notification_service import notification_service
+                        from app.services.notification_service import notification_service
                         await notification_service.send_notification(notification)
                     
                     # Remove from scheduled set
@@ -122,8 +122,8 @@ async def schedule_model_retraining():
     """Schedule periodic model retraining"""
     import asyncio
     from datetime import datetime, timedelta
-    from services.ml_service import get_symptom_checker_model
-    from database import get_db
+    from app.services.ml_service import get_symptom_checker_model
+    from app.database import get_db
     from app.models.ml_models import MLModel
     
     while True:
@@ -277,7 +277,7 @@ async def global_exception_handler(request: Request, exc: Exception):
 async def rate_limiting_middleware(request: Request, call_next):
     """Basic rate limiting middleware using Redis"""
     try:
-        from database import get_redis
+        from app.database import get_redis
         import time
         
         # Skip rate limiting for health checks and static files

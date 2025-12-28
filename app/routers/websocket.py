@@ -6,7 +6,7 @@ from fastapi.security import HTTPBearer
 from jose import JWTError
 
 from app.auth import verify_token
-from services.websocket_service import websocket_service
+from app.services.websocket_service import websocket_service
 from app.database import get_db
 from app.models.user import User
 
