@@ -7,8 +7,8 @@ services:
     name: telemedicine-backend
     env: python
     region: oregon
-    buildCommand: pip install -r requirements.txt && chmod +x start.sh
-    startCommand: ./start.sh
+    buildCommand: pip install -r requirements.txt
+    startCommand: python main.py
     envVars:
       - key: PYTHON_VERSION
         value: "3.11"
