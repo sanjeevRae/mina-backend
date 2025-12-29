@@ -204,6 +204,101 @@ if not settings.DEBUG:
         allowed_hosts=["yourdomain.com", "*.render.com"]
     )
 
+
+# ======== SQLITE ENDPOINTS ========
+
+@app.get("/sql-users-view")
+async def sql_users_view():
+    """View all users from SQLite database"""
+    try:
+        from app.database import SessionLocal
+        from app.models.user import User
+        
+        db = SessionLocal()
+        users = db.query(User).all()
+        
+        user_list = []
+        for user in users:
+            user_data = {
+                "id": user.id,
+                "email": user.email,
+                "username": user.username,
+                "full_name": user.full_name,
+                "phone": user.phone,
+                "gender": user.gender,
+                "role": user.role,
+                "is_active": user.is_active,
+                "is_verified": user.is_verified,
+                "date_of_birth": str(user.date_of_birth) if user.date_of_birth else None,
+                "address": user.address,
+                "emergency_contact": user.emergency_contact,
+                "medical_conditions": user.medical_conditions or [],
+                "allergies": user.allergies or [],
+                "current_medications": user.current_medications or [],
+                "created_at": str(user.created_at),
+                "last_login": str(user.last_login) if user.last_login else None,
+                "profile_image_url": user.profile_image_url
+            }
+            user_list.append(user_data)
+        
+        db.close()
+        
+        return {
+            "total_users": len(user_list),
+            "users": user_list,
+            "storage": "SQLite Database"
+        }
+        
+    except Exception as e:
+        return {
+            "error": str(e),
+            "hint": "Check if User model exists in app.models.user"
+        }
+
+@app.get("/sql-tables")
+async def sql_tables():
+    """List all tables in SQLite database"""
+    try:
+        from app.database import engine
+        
+        with engine.connect() as conn:
+            # For SQLite
+            result = conn.execute("SELECT name FROM sqlite_master WHERE type='table';")
+            tables = [row[0] for row in result]
+            
+        return {
+            "tables": tables,
+            "database_type": "SQLite"
+        }
+        
+    except Exception as e:
+        return {"error": str(e)}
+
+@app.get("/sql-table/{table_name}")
+async def sql_table_data(table_name: str):
+    """View data from any table"""
+    try:
+        from app.database import engine
+        
+        with engine.connect() as conn:
+            result = conn.execute(f"SELECT * FROM {table_name};")
+            columns = result.keys()
+            rows = [dict(zip(columns, row)) for row in result]
+            
+        return {
+            "table": table_name,
+            "columns": list(columns),
+            "row_count": len(rows),
+            "data": rows[:100]  # Limit to 100 rows
+        }
+        
+    except Exception as e:
+        return {"error": str(e)}
+
+# ======== END ========
+
+
+
 # ======== REDIS ENDPOINTS ========
 import redis
 import json
