@@ -38,8 +38,7 @@ class SyntheticDataGenerator:
         
     def _load_medical_knowledge(self) -> Dict[str, Dict]:
         """Load medical knowledge base from CDC/WHO data"""
-        # This would normally load from real medical databases
-        # For now, we'll create a comprehensive synthetic knowledge base
+       
         return {
             "common_cold": {
                 "symptoms": {
@@ -261,46 +260,77 @@ class SymptomCheckerModel:
         self.scaler = StandardScaler()
         self.feature_columns = []
         self.data_generator = SyntheticDataGenerator()
+        # Auto-load the latest trained model if available
+        self._auto_load_latest_model()
+
+    def _auto_load_latest_model(self):
+        """Automatically load the latest trained model from the models directory if available."""
+        try:
+            model_dir = settings.model_directory
+            if not model_dir.exists() or not model_dir.is_dir():
+                return
+            # Find all symptom_checker_v* directories
+            model_versions = [d for d in model_dir.iterdir() if d.is_dir() and d.name.startswith("symptom_checker_v")]
+            if not model_versions:
+                return
+            # Sort by version (timestamp in name)
+            latest_model = sorted(model_versions, key=lambda d: d.name, reverse=True)[0]
+            self.load_model(str(latest_model))
+            logger.info(f"Auto-loaded latest model: {latest_model}")
+        except Exception as e:
+            logger.warning(f"Could not auto-load latest model: {e}")
         
-    def prepare_features(self, df: pd.DataFrame) -> pd.DataFrame:
-        """Prepare features for ML training"""
-        # Encode categorical variables
-        categorical_columns = ["gender", "specialist_required"]
-        for col in categorical_columns:
-            if col in df.columns:
-                if col not in self.label_encoders:
-                    self.label_encoders[col] = LabelEncoder()
-                    df[col] = self.label_encoders[col].fit_transform(df[col])
-                else:
-                    df[col] = self.label_encoders[col].transform(df[col])
-        
-        # Select feature columns
-        symptom_columns = [col for col in df.columns if "_present" in col or "_severity" in col]
-        feature_columns = ["age", "num_symptoms"] + categorical_columns + symptom_columns
-        self.feature_columns = [col for col in feature_columns if col in df.columns]
-        
-        return df[self.feature_columns]
+    def prepare_features(self, df: pd.DataFrame, real_data: bool = False) -> pd.DataFrame:
+        """Prepare features for ML training. If real_data, use all columns except 'diagnosis' as features."""
+        if real_data:
+            feature_columns = [col for col in df.columns if col != "diagnosis"]
+            self.feature_columns = feature_columns
+            return df[feature_columns]
+        else:
+            # Encode categorical variables
+            categorical_columns = ["gender", "specialist_required"]
+            for col in categorical_columns:
+                if col in df.columns:
+                    if col not in self.label_encoders:
+                        self.label_encoders[col] = LabelEncoder()
+                        df[col] = self.label_encoders[col].fit_transform(df[col])
+                    else:
+                        df[col] = self.label_encoders[col].transform(df[col])
+            # Select feature columns
+            symptom_columns = [col for col in df.columns if "_present" in col or "_severity" in col]
+            feature_columns = ["age", "num_symptoms"] + categorical_columns + symptom_columns
+            self.feature_columns = [col for col in feature_columns if col in df.columns]
+            return df[self.feature_columns]
     
-    def train(self, num_samples: int = 10000) -> Dict[str, float]:
-        """Train the symptom checker models"""
-        logger.info(f"Generating {num_samples} synthetic training samples...")
-        
-        # Generate synthetic data
-        df = self.data_generator.generate_dataset(num_samples)
-        
+    def train(self, num_samples: int = 10000, real_data_path: str = None) -> Dict[str, float]:
+        """Train the symptom checker models. If real_data_path is provided, use real data, else use synthetic."""
+        real_data = False
+        if real_data_path is not None and os.path.exists(real_data_path):
+            logger.info(f"Loading real dataset from {real_data_path}...")
+            df = pd.read_csv(real_data_path)
+            if "diagnosis" in df.columns:
+                real_data = True
+        else:
+            logger.info(f"Generating {num_samples} synthetic training samples...")
+            df = self.data_generator.generate_dataset(num_samples)
+
         # Prepare features and targets
-        X = self.prepare_features(df.copy())
-        y_condition = df["condition"]
-        y_urgency = df["urgency_level"]
-        
+        if real_data:
+            X = self.prepare_features(df.copy(), real_data=True)
+            y_condition = df["diagnosis"]
+        else:
+            X = self.prepare_features(df.copy())
+            y_condition = df["condition"]
+        # No urgency for real data
+
         # Split data
-        X_train, X_test, y_condition_train, y_condition_test, y_urgency_train, y_urgency_test = \
-            train_test_split(X, y_condition, y_urgency, test_size=0.2, random_state=42, stratify=y_condition)
-        
+        X_train, X_test, y_condition_train, y_condition_test = \
+            train_test_split(X, y_condition, test_size=0.2, random_state=42, stratify=y_condition)
+
         # Scale features
         X_train_scaled = self.scaler.fit_transform(X_train)
         X_test_scaled = self.scaler.transform(X_test)
-        
+
         # Train condition classifier
         logger.info("Training condition classifier...")
         self.condition_classifier = RandomForestClassifier(
@@ -312,36 +342,22 @@ class SymptomCheckerModel:
             n_jobs=-1
         )
         self.condition_classifier.fit(X_train_scaled, y_condition_train)
-        
-        # Train urgency classifier
-        logger.info("Training urgency classifier...")
-        self.urgency_classifier = GradientBoostingClassifier(
-            n_estimators=100,
-            learning_rate=0.1,
-            max_depth=6,
-            random_state=42
-        )
-        self.urgency_classifier.fit(X_train_scaled, y_urgency_train)
-        
+
         # Evaluate models
         condition_pred = self.condition_classifier.predict(X_test_scaled)
-        urgency_pred = self.urgency_classifier.predict(X_test_scaled)
-        
         metrics = {
             "condition_accuracy": accuracy_score(y_condition_test, condition_pred),
             "condition_precision": precision_score(y_condition_test, condition_pred, average="weighted"),
             "condition_recall": recall_score(y_condition_test, condition_pred, average="weighted"),
             "condition_f1": f1_score(y_condition_test, condition_pred, average="weighted"),
-            "urgency_accuracy": accuracy_score(y_urgency_test, urgency_pred),
-            "urgency_f1": f1_score(y_urgency_test, urgency_pred, average="weighted")
         }
-        
+
         # Cross-validation
         cv_scores = cross_val_score(self.condition_classifier, X_train_scaled, y_condition_train, cv=5)
         metrics["condition_cv_score"] = cv_scores.mean()
-        
+
         logger.info(f"Training completed. Condition accuracy: {metrics['condition_accuracy']:.3f}")
-        
+
         return metrics
     
     def save_model(self, version: str = None) -> str:
