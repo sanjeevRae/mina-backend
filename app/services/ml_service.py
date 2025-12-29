@@ -194,15 +194,41 @@ class SyntheticDataGenerator:
         return comorbidities
     
     def generate_dataset(self, num_samples: int = 10000) -> pd.DataFrame:
-        """Generate a complete synthetic dataset"""
+        """Generate a balanced synthetic dataset with equal samples per condition"""
         data = []
         conditions = list(self.symptom_condition_mapping.keys())
-        
-        for _ in range(num_samples):
+        n_conditions = len(conditions)
+        samples_per_condition = num_samples // n_conditions
+        for condition in conditions:
+            for _ in range(samples_per_condition):
+                case = self.generate_patient_case(condition)
+                # Flatten the data for ML
+                flattened = {
+                    "condition": case["condition"],
+                    "urgency_level": case["urgency_level"],
+                    "specialist_required": case["specialist_required"],
+                    "age": case["patient_info"]["age"],
+                    "gender": case["patient_info"]["gender"],
+                    "num_symptoms": len(case["symptoms"])
+                }
+                # Add symptom presence and severity
+                all_symptoms_dict = {symptom: {"present": False, "severity": 0} 
+                                   for symptom in self.common_symptoms}
+                for symptom_data in case["symptoms"]:
+                    symptom_name = symptom_data["symptom"]
+                    if symptom_name in all_symptoms_dict:
+                        all_symptoms_dict[symptom_name]["present"] = True
+                        all_symptoms_dict[symptom_name]["severity"] = symptom_data["severity"]
+                # Add to flattened data
+                for symptom in self.common_symptoms:
+                    flattened[f"{symptom}_present"] = all_symptoms_dict[symptom]["present"]
+                    flattened[f"{symptom}_severity"] = all_symptoms_dict[symptom]["severity"]
+                data.append(flattened)
+        # If num_samples is not divisible by n_conditions, add extra random samples
+        remaining = num_samples - samples_per_condition * n_conditions
+        for _ in range(remaining):
             condition = np.random.choice(conditions)
             case = self.generate_patient_case(condition)
-            
-            # Flatten the data for ML
             flattened = {
                 "condition": case["condition"],
                 "urgency_level": case["urgency_level"],
@@ -211,24 +237,17 @@ class SyntheticDataGenerator:
                 "gender": case["patient_info"]["gender"],
                 "num_symptoms": len(case["symptoms"])
             }
-            
-            # Add symptom presence and severity
             all_symptoms_dict = {symptom: {"present": False, "severity": 0} 
                                for symptom in self.common_symptoms}
-            
             for symptom_data in case["symptoms"]:
                 symptom_name = symptom_data["symptom"]
                 if symptom_name in all_symptoms_dict:
                     all_symptoms_dict[symptom_name]["present"] = True
                     all_symptoms_dict[symptom_name]["severity"] = symptom_data["severity"]
-            
-            # Add to flattened data
             for symptom in self.common_symptoms:
                 flattened[f"{symptom}_present"] = all_symptoms_dict[symptom]["present"]
                 flattened[f"{symptom}_severity"] = all_symptoms_dict[symptom]["severity"]
-            
             data.append(flattened)
-        
         return pd.DataFrame(data)
 
 
