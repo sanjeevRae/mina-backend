@@ -145,3 +145,5 @@ data/
 
 test.db
 firebase-service-account.json
+models/
+*.joblib
