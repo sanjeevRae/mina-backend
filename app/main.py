@@ -204,7 +204,7 @@ if not settings.DEBUG:
         allowed_hosts=["yourdomain.com", "*.render.com"]
     )
 
-# ======== FIXED REDIS ENDPOINTS ========
+# ======== REDIS ENDPOINTS ========
 import redis
 import json
 import time
@@ -304,6 +304,214 @@ async def redis_check():
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Redis error: {str(e)}")
+
+@app.get("/redis-users-explorer")
+async def redis_users_explorer():
+    """Find ALL user data in Redis - REAL USER DATA"""
+    try:
+        all_keys = redis_client.keys('*')
+        
+        # Find ALL keys that might contain user data
+        user_related_keys = {
+            "user_keys": [],
+            "session_keys": [], 
+            "auth_keys": [],
+            "profile_keys": [],
+            "login_keys": [],
+            "token_keys": [],
+            "email_keys": [],
+            "password_keys": []
+        }
+        
+        for key in all_keys:
+            key_lower = key.lower()
+            
+            if 'user:' in key_lower:
+                user_related_keys["user_keys"].append(key)
+            elif 'session:' in key_lower:
+                user_related_keys["session_keys"].append(key)
+            elif 'auth:' in key_lower or 'login:' in key_lower:
+                user_related_keys["auth_keys"].append(key)
+            elif 'profile:' in key_lower:
+                user_related_keys["profile_keys"].append(key)
+            elif 'token:' in key_lower:
+                user_related_keys["token_keys"].append(key)
+            elif 'email:' in key_lower or '@' in key:
+                user_related_keys["email_keys"].append(key)
+            elif 'password:' in key_lower or 'pass:' in key_lower or 'pwd:' in key_lower:
+                user_related_keys["password_keys"].append(key)
+        
+        # Get actual user data
+        users_data = {}
+        for key in user_related_keys["user_keys"]:
+            try:
+                key_type = redis_client.type(key)
+                
+                if key_type == "hash":
+                    data = redis_client.hgetall(key)
+                    users_data[key] = {"type": "hash", "data": data}
+                elif key_type == "string":
+                    data = redis_client.get(key)
+                    # Try to parse as JSON
+                    try:
+                        parsed = json.loads(data)
+                        users_data[key] = {"type": "string", "data": parsed}
+                    except:
+                        users_data[key] = {"type": "string", "data": data}
+                elif key_type == "zset":
+                    data = redis_client.zrange(key, 0, -1, withscores=True)
+                    users_data[key] = {"type": "sorted_set", "data": data}
+            except Exception as e:
+                users_data[key] = {"type": "error", "error": str(e)}
+        
+        # Get session data
+        sessions_data = {}
+        for key in user_related_keys["session_keys"][:20]:  # First 20
+            try:
+                data = redis_client.get(key)
+                sessions_data[key] = data
+            except:
+                sessions_data[key] = "Error reading"
+        
+        # Get auth/login data
+        auth_data = {}
+        for key in user_related_keys["auth_keys"][:10]:
+            try:
+                key_type = redis_client.type(key)
+                if key_type == "string":
+                    auth_data[key] = redis_client.get(key)
+                elif key_type == "hash":
+                    auth_data[key] = redis_client.hgetall(key)
+            except:
+                auth_data[key] = "Error"
+        
+        return {
+            "total_keys_in_redis": len(all_keys),
+            "user_related_keys": user_related_keys,
+            "users_count": len(user_related_keys["user_keys"]),
+            "sessions_count": len(user_related_keys["session_keys"]),
+            "auth_count": len(user_related_keys["auth_keys"]),
+            "real_users_data": dict(list(users_data.items())[:20]),  # First 20 users
+            "sample_sessions": sessions_data,
+            "sample_auth_data": auth_data,
+            "message": "This shows REAL user data from your Redis database"
+        }
+        
+    except Exception as e:
+        return {"error": str(e)}
+
+@app.get("/redis-raw-data")
+async def redis_raw_data(pattern: str = "*"):
+    """Get ALL raw data from Redis - COMPLETE DATA DUMP"""
+    try:
+        keys = redis_client.keys(pattern)
+        
+        all_data = {}
+        for key in keys:
+            try:
+                key_type = redis_client.type(key)
+                
+                if key_type == "string":
+                    value = redis_client.get(key)
+                    all_data[key] = {
+                        "type": "string",
+                        "value": value,
+                        "ttl": redis_client.ttl(key),
+                        "size": len(str(value)) if value else 0
+                    }
+                    
+                elif key_type == "hash":
+                    value = redis_client.hgetall(key)
+                    all_data[key] = {
+                        "type": "hash", 
+                        "value": value,
+                        "ttl": redis_client.ttl(key),
+                        "field_count": len(value)
+                    }
+                    
+                elif key_type == "list":
+                    value = redis_client.lrange(key, 0, -1)
+                    all_data[key] = {
+                        "type": "list",
+                        "value": value,
+                        "length": len(value),
+                        "ttl": redis_client.ttl(key)
+                    }
+                    
+                elif key_type == "set":
+                    value = list(redis_client.smembers(key))
+                    all_data[key] = {
+                        "type": "set",
+                        "value": value,
+                        "count": len(value),
+                        "ttl": redis_client.ttl(key)
+                    }
+                    
+                elif key_type == "zset":
+                    value = redis_client.zrange(key, 0, -1, withscores=True)
+                    all_data[key] = {
+                        "type": "zset",
+                        "value": value,
+                        "count": redis_client.zcard(key),
+                        "ttl": redis_client.ttl(key)
+                    }
+                    
+            except Exception as e:
+                all_data[key] = {"error": str(e)}
+        
+        return {
+            "pattern": pattern,
+            "total_keys": len(keys),
+            "data": all_data
+        }
+        
+    except Exception as e:
+        return {"error": str(e)}
+
+@app.get("/redis-find-user/{search_term}")
+async def redis_find_user(search_term: str):
+    """Search for user data by email, username, or ID"""
+    try:
+        all_keys = redis_client.keys('*')
+        results = []
+        
+        for key in all_keys:
+            try:
+                key_type = redis_client.type(key)
+                
+                if key_type == "hash":
+                    data = redis_client.hgetall(key)
+                    # Search in hash fields
+                    for field, value in data.items():
+                        if search_term.lower() in str(value).lower():
+                            results.append({
+                                "key": key,
+                                "type": "hash",
+                                "field": field,
+                                "value": value,
+                                "full_data": data
+                            })
+                
+                elif key_type == "string":
+                    value = redis_client.get(key)
+                    if search_term.lower() in str(value).lower():
+                        results.append({
+                            "key": key,
+                            "type": "string",
+                            "value": value
+                        })
+                        
+            except:
+                continue
+        
+        return {
+            "search_term": search_term,
+            "results_count": len(results),
+            "results": results[:50]  # Limit to 50 results
+        }
+        
+    except Exception as e:
+        return {"error": str(e)}
 
 @app.get("/redis-view")
 async def redis_view(key: str = ""):
