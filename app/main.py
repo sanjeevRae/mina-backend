@@ -211,33 +211,57 @@ async def sql_users_view():
     """View all users from SQLite database"""
     try:
         from app.database import SessionLocal
-        from app.models.user import User
+        from sqlalchemy import text
         
         db = SessionLocal()
-        users = db.query(User).all()
+        
+        # Use SQL query instead of ORM to avoid model issues
+        result = db.execute(text("""
+            SELECT 
+                id,
+                email,
+                username,
+                hashed_password,
+                full_name,
+                phone,
+                date_of_birth,
+                gender,
+                role,
+                is_active,
+                is_verified,
+                profile_image_url,
+                address,
+                emergency_contact,
+                medical_conditions,
+                allergies,
+                current_medications,
+                created_at,
+                updated_at,
+                last_login
+            FROM users
+            ORDER BY id
+        """))
         
         user_list = []
-        for user in users:
-            user_data = {
-                "id": user.id,
-                "email": user.email,
-                "username": user.username,
-                "full_name": user.full_name,
-                "phone": user.phone,
-                "gender": user.gender,
-                "role": user.role,
-                "is_active": user.is_active,
-                "is_verified": user.is_verified,
-                "date_of_birth": str(user.date_of_birth) if user.date_of_birth else None,
-                "address": user.address,
-                "emergency_contact": user.emergency_contact,
-                "medical_conditions": user.medical_conditions or [],
-                "allergies": user.allergies or [],
-                "current_medications": user.current_medications or [],
-                "created_at": str(user.created_at),
-                "last_login": str(user.last_login) if user.last_login else None,
-                "profile_image_url": user.profile_image_url
-            }
+        for row in result:
+            user_data = dict(row._mapping)
+            
+            # Convert date/datetime to string
+            for key in ['date_of_birth', 'created_at', 'updated_at', 'last_login']:
+                if user_data.get(key):
+                    user_data[key] = str(user_data[key])
+            
+            # Parse JSON fields if they exist
+            for json_field in ['medical_conditions', 'allergies', 'current_medications']:
+                if user_data.get(json_field):
+                    try:
+                        import json
+                        user_data[json_field] = json.loads(user_data[json_field])
+                    except:
+                        user_data[json_field] = []
+                else:
+                    user_data[json_field] = []
+            
             user_list.append(user_data)
         
         db.close()
@@ -251,50 +275,563 @@ async def sql_users_view():
     except Exception as e:
         return {
             "error": str(e),
-            "hint": "Check if User model exists in app.models.user"
+            "hint": f"Error loading users: {e.__class__.__name__}"
         }
+
 
 @app.get("/sql-tables")
 async def sql_tables():
     """List all tables in SQLite database"""
     try:
         from app.database import engine
+        from sqlalchemy import text
         
         with engine.connect() as conn:
-            # For SQLite
-            result = conn.execute("SELECT name FROM sqlite_master WHERE type='table';")
+            # Get all tables (excluding sqlite_sequence)
+            result = conn.execute(text("""
+                SELECT name as table_name 
+                FROM sqlite_master 
+                WHERE type='table' 
+                AND name NOT LIKE 'sqlite_%'
+                ORDER BY name
+            """))
             tables = [row[0] for row in result]
             
         return {
             "tables": tables,
-            "database_type": "SQLite"
+            "database_type": "SQLite",
+            "count": len(tables),
+            "message": "Tables retrieved successfully"
         }
         
     except Exception as e:
         return {"error": str(e)}
+
 
 @app.get("/sql-table/{table_name}")
 async def sql_table_data(table_name: str):
     """View data from any table"""
     try:
-        from app.database import engine
+        from app.database import engine, SessionLocal
+        from sqlalchemy import text, inspect
         
-        with engine.connect() as conn:
-            result = conn.execute(f"SELECT * FROM {table_name};")
-            columns = result.keys()
-            rows = [dict(zip(columns, row)) for row in result]
-            
+        # First validate table exists
+        db = SessionLocal()
+        inspector = inspect(engine)
+        
+        if table_name not in inspector.get_table_names():
+            return {"error": f"Table '{table_name}' does not exist"}
+        
+        # Get column information
+        columns_info = inspector.get_columns(table_name)
+        column_names = [col['name'] for col in columns_info]
+        
+        # Get row count
+        count_result = db.execute(text(f"SELECT COUNT(*) as count FROM {table_name}"))
+        total_count = count_result.fetchone()[0]
+        
+        # Get data with limit
+        result = db.execute(text(f"SELECT * FROM {table_name} LIMIT 100"))
+        
+        # Convert rows to dictionaries
+        rows = []
+        for row in result:
+            row_dict = {}
+            for idx, column_name in enumerate(column_names):
+                value = row[idx]
+                
+                # Convert JSON strings to objects for known JSON columns
+                if isinstance(value, str) and value.startswith('{') and value.endswith('}'):
+                    try:
+                        import json
+                        row_dict[column_name] = json.loads(value)
+                    except:
+                        row_dict[column_name] = value
+                # Convert datetime to string
+                elif hasattr(value, 'isoformat'):
+                    row_dict[column_name] = str(value)
+                else:
+                    row_dict[column_name] = value
+            rows.append(row_dict)
+        
+        db.close()
+        
         return {
             "table": table_name,
-            "columns": list(columns),
-            "row_count": len(rows),
-            "data": rows[:100]  # Limit to 100 rows
+            "columns": column_names,
+            "row_count": total_count,
+            "display_count": len(rows),
+            "data": rows,
+            "column_details": [
+                {
+                    "name": col['name'],
+                    "type": str(col['type']),
+                    "nullable": col.get('nullable', True)
+                }
+                for col in columns_info
+            ]
+        }
+        
+    except Exception as e:
+        return {"error": str(e), "details": f"Failed to load table '{table_name}'"}
+
+
+@app.get("/sql-database-info")
+async def sql_database_info():
+    """Get comprehensive database information"""
+    try:
+        from app.database import engine, SessionLocal
+        from sqlalchemy import text, inspect
+        import json
+        
+        db = SessionLocal()
+        inspector = inspect(engine)
+        
+        # Get all tables
+        tables = inspector.get_table_names()
+        tables = [t for t in tables if not t.startswith('sqlite_')]
+        
+        # Get table details
+        table_details = []
+        total_rows = 0
+        
+        for table in tables:
+            try:
+                # Get row count
+                count_result = db.execute(text(f"SELECT COUNT(*) FROM {table}"))
+                row_count = count_result.fetchone()[0]
+                total_rows += row_count
+                
+                # Get column count
+                columns = inspector.get_columns(table)
+                
+                table_details.append({
+                    "name": table,
+                    "row_count": row_count,
+                    "column_count": len(columns),
+                    "columns": [col['name'] for col in columns[:5]],  # First 5 columns
+                    "sample_data_url": f"/sql-table/{table}"
+                })
+            except:
+                table_details.append({
+                    "name": table,
+                    "error": "Could not retrieve details"
+                })
+        
+        # Get database size (approximate)
+        size_result = db.execute(text("""
+            SELECT page_count * page_size as size_bytes
+            FROM pragma_page_count(), pragma_page_size()
+        """))
+        size_info = size_result.fetchone()
+        size_bytes = size_info[0] if size_info else 0
+        
+        db.close()
+        
+        return {
+            "database": {
+                "type": "SQLite",
+                "filename": "telemedicine_dev.db",
+                "tables_count": len(tables),
+                "total_rows": total_rows,
+                "estimated_size": f"{size_bytes / 1024:.2f} KB",
+                "tables": tables
+            },
+            "table_details": table_details,
+            "endpoints": {
+                "users": "/sql-users-view",
+                "tables": "/sql-tables",
+                "table_data": "/sql-table/{table_name}",
+                "database_info": "/sql-database-info",
+                "stats": "/sql-database-stats"
+            }
         }
         
     except Exception as e:
         return {"error": str(e)}
 
-# ======== END ========
+
+@app.get("/sql-database-stats")
+async def get_database_stats():
+    """Get comprehensive database statistics"""
+    try:
+        from app.database import SessionLocal
+        from sqlalchemy import text, inspect
+        import json
+        from datetime import datetime
+        
+        db = SessionLocal()
+        inspector = inspect(db.get_bind())
+        
+        # Get all tables
+        all_tables = inspector.get_table_names()
+        tables = [t for t in all_tables if not t.startswith('sqlite_')]
+        
+        # Get row counts for each table
+        table_counts = {}
+        for table in tables:
+            try:
+                result = db.execute(text(f"SELECT COUNT(*) as count FROM {table}"))
+                count = result.fetchone()[0]
+                table_counts[table] = count
+            except Exception as e:
+                table_counts[table] = f"Error: {str(e)}"
+        
+        # Get user statistics
+        user_stats = {}
+        try:
+            # Count by role
+            role_result = db.execute(text("""
+                SELECT role, COUNT(*) as count 
+                FROM users 
+                GROUP BY role
+            """))
+            user_stats["by_role"] = {row[0]: row[1] for row in role_result}
+            
+            # Active users
+            active_result = db.execute(text("""
+                SELECT COUNT(*) as active_count 
+                FROM users 
+                WHERE is_active = 1
+            """))
+            user_stats["active_users"] = active_result.fetchone()[0]
+            
+            # Verified users
+            verified_result = db.execute(text("""
+                SELECT COUNT(*) as verified_count 
+                FROM users 
+                WHERE is_verified = 1
+            """))
+            user_stats["verified_users"] = verified_result.fetchone()[0]
+            
+        except Exception as e:
+            user_stats = {"error": str(e)}
+        
+        # Get appointment statistics if table exists
+        appointment_stats = {}
+        if 'appointments' in tables:
+            try:
+                status_result = db.execute(text("""
+                    SELECT status, COUNT(*) as count 
+                    FROM appointments 
+                    GROUP BY status
+                """))
+                appointment_stats["by_status"] = {row[0]: row[1] for row in status_result}
+            except:
+                appointment_stats["error"] = "Could not load appointment stats"
+        
+        db.close()
+        
+        return {
+            "statistics": {
+                "total_tables": len(tables),
+                "total_rows": sum([c for c in table_counts.values() if isinstance(c, int)]),
+                "table_row_counts": table_counts,
+                "users": user_stats,
+                "appointments": appointment_stats if appointment_stats else "No appointment data"
+            },
+            "tables": tables,
+            "timestamp": datetime.now().isoformat(),
+            "database": "SQLite (telemedicine_dev.db)"
+        }
+        
+    except Exception as e:
+        return {"error": str(e)}
+
+
+@app.get("/sql-table-schema/{table_name}")
+async def get_table_schema(table_name: str):
+    """Get detailed schema information for a specific table"""
+    try:
+        from app.database import engine
+        from sqlalchemy import inspect
+        
+        inspector = inspect(engine)
+        
+        if table_name not in inspector.get_table_names():
+            return {"error": f"Table '{table_name}' does not exist"}
+        
+        # Get columns
+        columns = inspector.get_columns(table_name)
+        
+        # Get primary keys
+        primary_keys = inspector.get_pk_constraint(table_name)['constrained_columns']
+        
+        # Get foreign keys
+        foreign_keys = inspector.get_foreign_keys(table_name)
+        
+        # Get indexes
+        indexes = inspector.get_indexes(table_name)
+        
+        return {
+            "table": table_name,
+            "columns": [
+                {
+                    "name": col['name'],
+                    "type": str(col['type']),
+                    "nullable": col.get('nullable', True),
+                    "default": str(col.get('default', '')),
+                    "primary_key": col['name'] in primary_keys
+                }
+                for col in columns
+            ],
+            "primary_keys": primary_keys,
+            "foreign_keys": [
+                {
+                    "constrained_columns": fk['constrained_columns'],
+                    "referred_table": fk['referred_table'],
+                    "referred_columns": fk['referred_columns']
+                }
+                for fk in foreign_keys
+            ],
+            "indexes": [
+                {
+                    "name": idx['name'],
+                    "columns": idx['column_names'],
+                    "unique": idx.get('unique', False)
+                }
+                for idx in indexes
+            ]
+        }
+        
+    except Exception as e:
+        return {"error": str(e)}
+
+
+@app.get("/sql-search/{search_term}")
+async def search_database(search_term: str):
+    """Search across all tables for a specific term"""
+    try:
+        from app.database import SessionLocal, engine
+        from sqlalchemy import text, inspect
+        
+        if len(search_term) < 2:
+            return {"error": "Search term must be at least 2 characters"}
+        
+        db = SessionLocal()
+        inspector = inspect(engine)
+        
+        # Get all tables
+        tables = [t for t in inspector.get_table_names() if not t.startswith('sqlite_')]
+        
+        results = []
+        
+        for table in tables:
+            try:
+                # Get column names
+                columns = [col['name'] for col in inspector.get_columns(table)]
+                
+                # Build search query
+                conditions = []
+                for col in columns:
+                    conditions.append(f"{col} LIKE '%{search_term}%'")
+                
+                if not conditions:
+                    continue
+                    
+                where_clause = " OR ".join(conditions)
+                query = text(f"SELECT * FROM {table} WHERE {where_clause} LIMIT 10")
+                
+                table_result = db.execute(query)
+                rows = [dict(row._mapping) for row in table_result]
+                
+                if rows:
+                    results.append({
+                        "table": table,
+                        "match_count": len(rows),
+                        "matches": rows
+                    })
+                    
+            except Exception as e:
+                # Skip tables we can't search
+                continue
+        
+        db.close()
+        
+        return {
+            "search_term": search_term,
+            "tables_searched": len(tables),
+            "tables_with_matches": len(results),
+            "total_matches": sum([r["match_count"] for r in results]),
+            "results": results
+        }
+        
+    except Exception as e:
+        return {"error": str(e)}
+
+
+@app.get("/sql-query")
+async def execute_custom_query(query: str = ""):
+    """Execute a custom SQL query (READ-ONLY)"""
+    if not query:
+        return {"error": "No query provided. Use ?query=SELECT..."}
+    
+    # Block dangerous operations
+    dangerous_keywords = ["DROP", "DELETE", "UPDATE", "INSERT", "ALTER", "TRUNCATE", "CREATE", "GRANT", "REVOKE"]
+    upper_query = query.upper()
+    
+    for keyword in dangerous_keywords:
+        if keyword in upper_query:
+            return {"error": f"Query contains restricted keyword: {keyword}"}
+    
+    try:
+        from app.database import SessionLocal
+        from sqlalchemy import text
+        
+        db = SessionLocal()
+        
+        # Execute query
+        result = db.execute(text(query))
+        
+        # If query returns rows
+        if result.returns_rows:
+            rows = [dict(row._mapping) for row in result]
+            columns = list(rows[0].keys()) if rows else []
+            
+            # Convert any JSON strings to objects
+            for row in rows:
+                for key, value in row.items():
+                    if isinstance(value, str) and value.startswith('{') and value.endswith('}'):
+                        try:
+                            import json
+                            row[key] = json.loads(value)
+                        except:
+                            pass
+            
+            return {
+                "status": "success",
+                "query": query,
+                "columns": columns,
+                "row_count": len(rows),
+                "data": rows[:50],  # Limit to 50 rows
+                "truncated": len(rows) > 50
+            }
+        else:
+            return {
+                "status": "success",
+                "query": query,
+                "message": "Query executed successfully",
+                "rows_affected": result.rowcount
+            }
+            
+    except Exception as e:
+        return {"error": str(e), "query": query}
+    finally:
+        if 'db' in locals():
+            db.close()
+
+
+@app.get("/sql-export/{table_name}")
+async def export_table_data(table_name: str, format: str = "json"):
+    """Export table data in different formats"""
+    try:
+        from app.database import SessionLocal, engine
+        from sqlalchemy import text, inspect
+        import json
+        import csv
+        import io
+        
+        db = SessionLocal()
+        inspector = inspect(engine)
+        
+        if table_name not in inspector.get_table_names():
+            return {"error": f"Table '{table_name}' does not exist"}
+        
+        # Get all data
+        result = db.execute(text(f"SELECT * FROM {table_name}"))
+        rows = [dict(row._mapping) for row in result]
+        
+        if format.lower() == "json":
+            return {
+                "table": table_name,
+                "format": "json",
+                "row_count": len(rows),
+                "data": rows
+            }
+            
+        elif format.lower() == "csv":
+            if not rows:
+                return {"error": "No data to export"}
+            
+            # Create CSV in memory
+            output = io.StringIO()
+            writer = csv.DictWriter(output, fieldnames=rows[0].keys())
+            writer.writeheader()
+            writer.writerows(rows)
+            
+            csv_content = output.getvalue()
+            
+            return {
+                "table": table_name,
+                "format": "csv",
+                "row_count": len(rows),
+                "data": csv_content,
+                "download_suggestion": f"Save as {table_name}_export.csv"
+            }
+            
+        else:
+            return {"error": f"Unsupported format: {format}. Use 'json' or 'csv'"}
+            
+    except Exception as e:
+        return {"error": str(e)}
+    finally:
+        if 'db' in locals():
+            db.close()
+
+
+@app.get("/sql-test-connection")
+async def test_database_connection():
+    """Test database connection and show basic info"""
+    try:
+        from app.database import SessionLocal, engine
+        from sqlalchemy import text, inspect
+        
+        db = SessionLocal()
+        
+        # Test connection
+        db.execute(text("SELECT 1"))
+        
+        # Get database info
+        inspector = inspect(engine)
+        tables = [t for t in inspector.get_table_names() if not t.startswith('sqlite_')]
+        
+        # Get SQLite version
+        result = db.execute(text("SELECT sqlite_version()"))
+        sqlite_version = result.fetchone()[0]
+        
+        # Get database file info
+        result = db.execute(text("PRAGMA database_list"))
+        db_files = [dict(row._mapping) for row in result]
+        
+        db.close()
+        
+        return {
+            "status": "connected",
+            "database": {
+                "type": "SQLite",
+                "version": sqlite_version,
+                "tables_count": len(tables),
+                "tables": tables,
+                "files": db_files
+            },
+            "endpoints_available": [
+                "/sql-users-view",
+                "/sql-tables",
+                "/sql-table/{table_name}",
+                "/sql-database-info",
+                "/sql-database-stats",
+                "/sql-search/{search_term}",
+                "/sql-query?query=SELECT..."
+            ]
+        }
+        
+    except Exception as e:
+        return {
+            "status": "disconnected",
+            "error": str(e)
+        }
+
+# ======== END SQLITE ENDPOINTS ========
 
 
 
