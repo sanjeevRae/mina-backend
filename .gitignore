@@ -1,3 +1,5 @@
+# Ignore model files
+models/
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
@@ -131,12 +133,7 @@ dmypy.json
 # Project specific
 *.db
 uploads/
-models/
-*.joblib
-*.pkl
-*.h5
-*.pt
-*.onnx
+# models/   # Commented out to allow app/models to be tracked
 archives/
 data/
 .DS_Store
