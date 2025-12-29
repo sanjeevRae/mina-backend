@@ -204,51 +204,56 @@ if not settings.DEBUG:
         allowed_hosts=["yourdomain.com", "*.render.com"]
     )
 
-# ======== ADD REDIS CHECK ENDPOINTS ========
-
+# ======== FIXED REDIS ENDPOINTS ========
 import redis
 import json
 
+# Create Redis client with decode_responses=True
+redis_client = redis.Redis.from_url(
+    'rediss://red-d58fpluuk2gs73djegfg:PY5FJC6eNkCY6Vjiuj7dJ9jgUd4DjbyN@singapore-keyvalue.render.com:6379',
+    decode_responses=True,  # THIS FIXES THE decode() ERROR!
+    ssl_cert_reqs=None  # For SSL connection
+)
+
 @app.get("/redis-check")
 async def redis_check():
-    """Check Redis data"""
+    """Check Redis data - FIXED VERSION"""
     try:
-        # Connect to Redis (using your existing Redis setup)
-        from app.database import get_redis
-        redis_client = await get_redis()
+        # Test connection
+        redis_client.ping()
         
         # Get all keys
-        keys = await redis_client.keys('*')
-        keys_decoded = [key.decode('utf-8') for key in keys]
+        keys = redis_client.keys('*')
         
         # Get sample values
         sample_data = {}
         for key in keys[:10]:  # First 10 keys
             try:
-                key_str = key.decode('utf-8')
-                value = await redis_client.get(key)
+                value = redis_client.get(key)
                 if value:
-                    # Try to parse as JSON, otherwise use raw string
+                    # Try to parse as JSON
                     try:
-                        parsed = json.loads(value.decode('utf-8'))
-                        sample_data[key_str] = parsed
-                    except:
-                        sample_data[key_str] = value.decode('utf-8')[:200]  # First 200 chars
+                        parsed = json.loads(value)
+                        sample_data[key] = parsed
+                    except json.JSONDecodeError:
+                        # If not JSON, use as string
+                        sample_data[key] = str(value)[:200]  # First 200 chars
             except Exception as e:
-                sample_data[key.decode('utf-8')] = f"Error: {str(e)}"
+                sample_data[key] = f"Error: {str(e)}"
         
         # Get Redis info
-        redis_info = await redis_client.info()
+        redis_info = redis_client.info()
         
         return {
             "status": "success",
             "keys_count": len(keys),
-            "keys": keys_decoded,
+            "keys": keys,
             "sample_data": sample_data,
             "redis_info": {
                 "used_memory": redis_info.get('used_memory_human', 'N/A'),
                 "connected_clients": redis_info.get('connected_clients', 'N/A'),
-                "total_commands_processed": redis_info.get('total_commands_processed', 'N/A')
+                "total_commands_processed": redis_info.get('total_commands_processed', 'N/A'),
+                "uptime_in_seconds": redis_info.get('uptime_in_seconds', 'N/A')
             }
         }
     except Exception as e:
@@ -256,66 +261,47 @@ async def redis_check():
 
 @app.get("/redis-view")
 async def redis_view(key: str = ""):
-    """View specific Redis key"""
+    """View specific Redis key - FIXED"""
     try:
-        from app.database import get_redis
-        redis_client = await get_redis()
-        
         if not key:
             return {"error": "No key provided. Use ?key=your_key"}
         
-        # Check key type
-        key_type = await redis_client.type(key)
-        
-        if key_type == b'none':
+        # Check if key exists
+        if not redis_client.exists(key):
             return {"error": f"Key '{key}' not found"}
         
-        result = {}
+        # Get key type
+        key_type = redis_client.type(key)
         
-        if key_type == b'string':
-            value = await redis_client.get(key)
-            result = {
-                "key": key,
-                "type": "string",
-                "value": value.decode('utf-8') if value else None
-            }
-        elif key_type == b'hash':
-            value = await redis_client.hgetall(key)
-            result = {
-                "key": key,
-                "type": "hash",
-                "value": {k.decode('utf-8'): v.decode('utf-8') for k, v in value.items()}
-            }
-        elif key_type == b'list':
-            value = await redis_client.lrange(key, 0, -1)
-            result = {
-                "key": key,
-                "type": "list",
-                "value": [v.decode('utf-8') for v in value]
-            }
-        elif key_type == b'set':
-            value = await redis_client.smembers(key)
-            result = {
-                "key": key,
-                "type": "set",
-                "value": [v.decode('utf-8') for v in value]
-            }
-        elif key_type == b'zset':
-            value = await redis_client.zrange(key, 0, -1, withscores=True)
-            result = {
-                "key": key,
-                "type": "sorted_set",
-                "value": [(v[0].decode('utf-8'), v[1]) for v in value]
-            }
+        result = {"key": key, "type": key_type}
+        
+        if key_type == "string":
+            value = redis_client.get(key)
+            result["value"] = value
+            result["length"] = len(value) if value else 0
+            
+        elif key_type == "hash":
+            value = redis_client.hgetall(key)
+            result["value"] = value
+            
+        elif key_type == "list":
+            value = redis_client.lrange(key, 0, -1)
+            result["value"] = value
+            result["length"] = len(value)
+            
+        elif key_type == "set":
+            value = redis_client.smembers(key)
+            result["value"] = list(value)
+            
+        elif key_type == "zset":
+            value = redis_client.zrange(key, 0, -1, withscores=True)
+            result["value"] = value
+            
         else:
-            result = {
-                "key": key,
-                "type": key_type.decode('utf-8'),
-                "value": "Unsupported type for display"
-            }
+            result["value"] = f"Unsupported type: {key_type}"
         
         # Get TTL
-        ttl = await redis_client.ttl(key)
+        ttl = redis_client.ttl(key)
         result["ttl"] = ttl if ttl > 0 else "no expiry"
         
         return result
@@ -325,11 +311,8 @@ async def redis_view(key: str = ""):
 
 @app.get("/redis-command")
 async def redis_command(cmd: str = ""):
-    """Execute Redis command"""
+    """Execute Redis command - FIXED"""
     try:
-        from app.database import get_redis
-        redis_client = await get_redis()
-        
         if not cmd:
             return {"error": "No command provided. Use ?cmd=KEYS%20*"}
         
@@ -337,48 +320,51 @@ async def redis_command(cmd: str = ""):
         parts = cmd.strip().split()
         command = parts[0].upper()
         
-        if command == "KEYS" and len(parts) > 1:
-            pattern = parts[1]
-            keys = await redis_client.keys(pattern)
-            return {"result": [k.decode('utf-8') for k in keys]}
+        if command == "KEYS":
+            pattern = parts[1] if len(parts) > 1 else "*"
+            result = redis_client.keys(pattern)
+            return {"result": result}
         
         elif command == "GET" and len(parts) > 1:
             key = parts[1]
-            value = await redis_client.get(key)
-            return {"result": value.decode('utf-8') if value else None}
+            result = redis_client.get(key)
+            return {"result": result}
         
         elif command == "SET" and len(parts) > 2:
             key = parts[1]
             value = ' '.join(parts[2:])
-            result = await redis_client.set(key, value)
+            result = redis_client.set(key, value)
             return {"result": "OK" if result else "Failed"}
         
         elif command == "DEL" and len(parts) > 1:
             keys = parts[1:]
-            result = await redis_client.delete(*keys)
-            return {"result": f"Deleted {result} keys"}
+            result = redis_client.delete(*keys)
+            return {"result": f"Deleted {result} key(s)"}
         
         elif command == "DBSIZE":
-            result = await redis_client.dbsize()
+            result = redis_client.dbsize()
             return {"result": result}
         
         elif command == "INFO":
-            result = await redis_client.info()
+            result = redis_client.info()
             return {"result": result}
         
         elif command == "TTL" and len(parts) > 1:
             key = parts[1]
-            result = await redis_client.ttl(key)
+            result = redis_client.ttl(key)
             return {"result": result}
         
         elif command == "EXPIRE" and len(parts) > 2:
             key = parts[1]
             seconds = int(parts[2])
-            result = await redis_client.expire(key, seconds)
+            result = redis_client.expire(key, seconds)
             return {"result": "Set" if result else "Failed"}
         
+        elif command == "FLUSHALL":
+            return {"error": "FLUSHALL disabled for safety"}
+        
         else:
-            return {"error": f"Command '{command}' not supported or invalid syntax"}
+            return {"error": f"Command '{command}' not supported"}
             
     except Exception as e:
         return {"error": str(e)}
@@ -387,9 +373,7 @@ async def redis_command(cmd: str = ""):
 async def add_test_data():
     """Add test data to Redis"""
     try:
-        from app.database import get_redis
         from datetime import datetime
-        redis_client = await get_redis()
         
         test_data = {
             "app:name": "Mina Backend",
@@ -399,20 +383,30 @@ async def add_test_data():
             "cache:homepage": "Cached homepage data",
             "stats:visits": "100",
             "session:test": "active_session_123",
-            "notifications:queue": "pending",
-            "rate_limit:127.0.0.1": "10",
-            "test:simple": "This is a test value"
+            "list:tasks": ["task1", "task2", "task3"],
+            "hash:user:profile": {"name": "John", "age": "30"}
         }
         
-        added = 0
+        added = []
+        
+        # Add string values
         for key, value in test_data.items():
-            await redis_client.set(key, value)
-            added += 1
+            if isinstance(value, (str, int, float)):
+                redis_client.set(key, value)
+                added.append(key)
+            elif isinstance(value, list):
+                redis_client.delete(key)  # Clear first
+                for item in value:
+                    redis_client.rpush(key, item)
+                added.append(f"{key} (list)")
+            elif isinstance(value, dict):
+                redis_client.hset(key, mapping=value)
+                added.append(f"{key} (hash)")
         
         return {
             "status": "success",
-            "message": f"Added {added} test keys",
-            "keys": list(test_data.keys())
+            "message": f"Added {len(added)} test items",
+            "added": added
         }
         
     except Exception as e:
@@ -420,23 +414,22 @@ async def add_test_data():
 
 @app.get("/redis-clear-test")
 async def clear_test_data():
-    """Clear test data from Redis"""
+    """Clear test data"""
     try:
-        from app.database import get_redis
-        redis_client = await get_redis()
+        # Find test keys
+        all_keys = redis_client.keys('*')
+        test_keys = []
         
-        # Get all keys
-        keys = await redis_client.keys('*')
-        
-        # Filter test keys (modify pattern as needed)
-        test_keys = [key for key in keys if key.decode('utf-8').startswith(('test:', 'app:', 'cache:'))]
+        for key in all_keys:
+            if key.startswith(('app:', 'user:test:', 'cache:', 'stats:', 'session:', 'list:', 'hash:', 'test:')):
+                test_keys.append(key)
         
         if test_keys:
-            deleted = await redis_client.delete(*test_keys)
+            deleted = redis_client.delete(*test_keys)
             return {
                 "status": "success",
                 "message": f"Deleted {deleted} test keys",
-                "deleted_keys": [k.decode('utf-8') for k in test_keys]
+                "deleted_keys": test_keys
             }
         else:
             return {
@@ -448,7 +441,6 @@ async def clear_test_data():
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Redis error: {str(e)}")
 
-# ======== END OF REDIS ENDPOINTS ========
 
 # Include routers
 app.include_router(auth.router, prefix="/api/v1")
