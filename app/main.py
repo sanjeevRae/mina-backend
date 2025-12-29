@@ -203,9 +203,8 @@ if not settings.DEBUG:
         TrustedHostMiddleware,
         allowed_hosts=["yourdomain.com", "*.render.com"]
     )
-
-
-# ======== SQLITE ENDPOINTS ========
+    
+# ======== SQLITE DATABASE ENDPOINTS ========
 
 @app.get("/sql-users-view")
 async def sql_users_view():
