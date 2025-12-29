@@ -207,6 +207,8 @@ if not settings.DEBUG:
 # ======== FIXED REDIS ENDPOINTS ========
 import redis
 import json
+import time
+from datetime import datetime
 
 # Create Redis client with decode_responses=True
 redis_client = redis.Redis.from_url(
@@ -225,21 +227,65 @@ async def redis_check():
         # Get all keys
         keys = redis_client.keys('*')
         
-        # Get sample values
+        # Get sample values - FIXED FOR ALL DATA TYPES
         sample_data = {}
         for key in keys[:10]:  # First 10 keys
             try:
-                value = redis_client.get(key)
-                if value:
-                    # Try to parse as JSON
-                    try:
-                        parsed = json.loads(value)
-                        sample_data[key] = parsed
-                    except json.JSONDecodeError:
-                        # If not JSON, use as string
-                        sample_data[key] = str(value)[:200]  # First 200 chars
+                key_type = redis_client.type(key)
+                
+                if key_type == "string":
+                    value = redis_client.get(key)
+                    if value:
+                        # Try to parse as JSON
+                        try:
+                            parsed = json.loads(value)
+                            sample_data[key] = {"type": "string", "value": parsed}
+                        except json.JSONDecodeError:
+                            # If not JSON, use as string
+                            sample_data[key] = {"type": "string", "value": str(value)[:200]}
+                    else:
+                        sample_data[key] = {"type": "string", "value": None}
+                        
+                elif key_type == "zset":  # This is your rate_limit key type!
+                    # Get count and first few members
+                    count = redis_client.zcard(key)
+                    members = redis_client.zrange(key, 0, min(4, count-1), withscores=True)
+                    
+                    # Format members with readable timestamps
+                    formatted_members = []
+                    for member, score in members:
+                        timestamp = datetime.fromtimestamp(score)
+                        formatted_members.append({
+                            "member": member,
+                            "score": score,
+                            "time": timestamp.isoformat(),
+                            "age_seconds": int(time.time() - score)
+                        })
+                    
+                    sample_data[key] = {
+                        "type": "sorted_set",
+                        "count": count,
+                        "sample_members": formatted_members
+                    }
+                    
+                elif key_type == "hash":
+                    value = redis_client.hgetall(key)
+                    sample_data[key] = {"type": "hash", "value": value}
+                    
+                elif key_type == "list":
+                    length = redis_client.llen(key)
+                    value = redis_client.lrange(key, 0, min(4, length-1))
+                    sample_data[key] = {"type": "list", "count": length, "sample": value}
+                    
+                elif key_type == "set":
+                    members = list(redis_client.smembers(key))
+                    sample_data[key] = {"type": "set", "count": len(members), "sample": members[:5]}
+                    
+                else:
+                    sample_data[key] = {"type": key_type, "info": "Unsupported type for display"}
+                    
             except Exception as e:
-                sample_data[key] = f"Error: {str(e)}"
+                sample_data[key] = {"type": "error", "message": str(e)}
         
         # Get Redis info
         redis_info = redis_client.info()
@@ -440,6 +486,52 @@ async def clear_test_data():
             
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Redis error: {str(e)}")
+
+@app.get("/redis-rate-limit-details")
+async def redis_rate_limit_details():
+    """View detailed rate limit information"""
+    key = "rate_limit:202.166.207.163"
+    
+    try:
+        if not redis_client.exists(key):
+            return {"error": "Rate limit key not found"}
+        
+        # Get all members with scores
+        all_members = redis_client.zrange(key, 0, -1, withscores=True)
+        
+        # Calculate statistics
+        now = time.time()
+        recent_cutoff = now - 3600  # Last hour
+        
+        recent_requests = []
+        total_requests = len(all_members)
+        
+        for member, score in all_members:
+            age = now - score
+            if age <= 3600:  # Last hour
+                recent_requests.append({
+                    "timestamp": score,
+                    "time": datetime.fromtimestamp(score).isoformat(),
+                    "age_seconds": int(age)
+                })
+        
+        # Sort by age
+        recent_requests.sort(key=lambda x: x["age_seconds"])
+        
+        return {
+            "key": key,
+            "type": redis_client.type(key),
+            "total_requests": total_requests,
+            "recent_requests_last_hour": len(recent_requests),
+            "requests": recent_requests[:20],  # First 20
+            "ttl": redis_client.ttl(key),
+            "description": "This is from your rate limiting middleware. Each request adds a timestamp."
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
+
+# ======== END ========
 
 
 # Include routers
