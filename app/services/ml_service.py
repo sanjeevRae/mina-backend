@@ -3,7 +3,7 @@ import json
 import pandas as pd
 import numpy as np
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.model_selection import train_test_split, cross_val_score
+from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder, StandardScaler
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
 import joblib
@@ -11,6 +11,7 @@ from typing import List, Dict, Tuple, Any, Optional
 from datetime import datetime
 from pathlib import Path
 import logging
+import gc  # Garbage collection
 
 from app.config import settings
 from app.database import get_db
@@ -28,24 +29,7 @@ class SymptomCheckerModel:
         self.label_encoders = {}
         self.scaler = StandardScaler()
         self.feature_columns = []
-        self._auto_load_latest_model()
-
-    def _auto_load_latest_model(self):
-        """Automatically load the latest trained model from the models directory if available."""
-        try:
-            model_dir = settings.model_directory
-            if not model_dir.exists() or not model_dir.is_dir():
-                return
-            # Find all symptom_checker_v* directories
-            model_versions = [d for d in model_dir.iterdir() if d.is_dir() and d.name.startswith("symptom_checker_v")]
-            if not model_versions:
-                return
-            # Sort by version (timestamp in name)
-            latest_model = sorted(model_versions, key=lambda d: d.name, reverse=True)[0]
-            self.load_model(str(latest_model))
-            logger.info(f"Auto-loaded latest model: {latest_model}")
-        except Exception as e:
-            logger.warning(f"Could not auto-load latest model: {e}")
+        # Don't auto-load on initialization to save memory
 
     def prepare_features(self, df: pd.DataFrame) -> pd.DataFrame:
         """Prepare features from CSV data for ML training."""
@@ -82,8 +66,9 @@ class SymptomCheckerModel:
             raise FileNotFoundError(f"CSV data file not found: {real_data_path}")
 
         logger.info(f"Loading real dataset from {real_data_path}...")
+
         # Load data in chunks to reduce memory usage
-        chunk_size = 1000
+        chunk_size = 500  # Reduced chunk size
         chunks = pd.read_csv(real_data_path, chunksize=chunk_size)
 
         # Process the first chunk to get column names and initialize
@@ -107,22 +92,31 @@ class SymptomCheckerModel:
 
         # Split data
         X_train, X_test, y_train, y_test = train_test_split(
-            X, y, test_size=0.2, random_state=42, stratify=y
+            X, y, test_size=0.15, random_state=42, stratify=y  # Reduced test size
         )
+
+        # Clean up original dataframe to save memory
+        del df
+        gc.collect()
 
         # Scale features
         X_train_scaled = self.scaler.fit_transform(X_train)
         X_test_scaled = self.scaler.transform(X_test)
 
-        # Train condition classifier with reduced memory usage
+        # Clean up original X, y to save memory
+        del X, y
+        gc.collect()
+
+        # Train condition classifier with minimal memory usage
         logger.info("Training condition classifier...")
         self.condition_classifier = RandomForestClassifier(
-            n_estimators=100,  # Reduced from 200 to save memory
-            max_depth=10,      # Reduced from 20 to save memory
-            min_samples_split=10,  # Increased to reduce overfitting and memory
-            min_samples_leaf=5,    # Increased to reduce overfitting and memory
+            n_estimators=50,       # Further reduced from 100
+            max_depth=5,           # Further reduced from 10
+            min_samples_split=20,  # Increased to reduce overfitting and memory
+            min_samples_leaf=10,   # Increased to reduce overfitting and memory
             random_state=42,
-            n_jobs=1  # Use single job to reduce memory usage
+            n_jobs=1,              # Use single job to reduce memory usage
+            max_features='sqrt'    # Use sqrt of features to reduce memory
         )
         self.condition_classifier.fit(X_train_scaled, y_train)
 
@@ -135,12 +129,11 @@ class SymptomCheckerModel:
             "condition_f1": f1_score(y_test, y_pred, average="weighted"),
         }
 
-        # Cross-validation with fewer folds to save memory
-        cv_scores = cross_val_score(self.condition_classifier, X_train_scaled, y_train, cv=3)
-        metrics["condition_cv_score"] = cv_scores.mean()
+        # Clean up training data to save memory
+        del X_train, X_test, y_train, y_test, X_train_scaled, X_test_scaled, y_pred
+        gc.collect()
 
         logger.info(f"Training completed. Condition accuracy: {metrics['condition_accuracy']:.3f}")
-        logger.info(f"Cross-validation score: {metrics['condition_cv_score']:.3f}")
 
         return metrics
 
@@ -291,12 +284,8 @@ class SymptomCheckerModel:
         return questions[:3]  # Limit to 3 questions
 
 
-# Global model instance
-_symptom_checker_model = None
-
+# Global model instance - Initialize only when needed
 def get_symptom_checker_model() -> SymptomCheckerModel:
     """Get or create the global symptom checker model instance"""
-    global _symptom_checker_model
-    if _symptom_checker_model is None:
-        _symptom_checker_model = SymptomCheckerModel()
-    return _symptom_checker_model
+    # Create a new instance each time to avoid memory retention
+    return SymptomCheckerModel()

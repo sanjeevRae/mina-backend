@@ -1,6 +1,6 @@
-# Symptom Checker with CSV Data
+# Symptom Checker with CSV Data - Memory Optimized for Render
 
-This implementation allows you to train and use a machine learning model for symptom checking using your own `symptom_data.csv` file.
+This implementation allows you to train and use a machine learning model for symptom checking using your own `symptom_data.csv` file, optimized for Render's 512MB memory limit.
 
 ## Data Format
 
@@ -16,14 +16,17 @@ fever,cough,headache,fatigue,diagnosis
 1,0,1,1,migraine
 ```
 
-## Memory Optimization for Render Deployment
+## Memory Optimizations for Render Deployment
 
-The implementation has been optimized for deployment on Render with limited memory (512MB):
-- Reduced model complexity (100 estimators, max depth 10)
-- Single-threaded training to reduce memory usage
-- Chunked data loading to prevent memory overflow
-- Reduced cross-validation folds (3 instead of 5)
-- Increased min samples to reduce overfitting and memory usage
+The implementation has been heavily optimized for deployment on Render with limited memory (512MB):
+- Reduced model complexity (50 estimators, max depth 5)
+- Single-threaded training (n_jobs=1) to reduce memory usage
+- Chunked data loading with 500-row chunks to prevent memory overflow
+- Reduced test size (15% instead of 20%)
+- Increased min samples (split=20, leaf=10) to reduce overfitting and memory
+- Garbage collection after training to free memory
+- Model created on-demand rather than pre-loaded
+- Max features set to 'sqrt' to reduce memory usage
 
 ## Training the Model
 
@@ -71,7 +74,7 @@ Model information is stored in the `ml_models` table in the database, including:
 
 ## Key Features
 
-- **Memory Optimized**: Designed to run within 512MB memory limits
+- **Heavily Memory Optimized**: Designed to run within 512MB memory limits
 - **Flexible Input**: Handles various CSV formats
 - **Automatic Feature Detection**: Automatically identifies features from CSV
 - **Categorical Encoding**: Handles categorical variables
@@ -93,4 +96,5 @@ If you encounter issues:
 2. Make sure all values are numeric or properly encoded
 3. Check that the data directory exists: `data/`
 4. Verify that you have write permissions for the `models/` directory
-5. For Render deployment, ensure your CSV file is not too large (limit to <50MB)
+5. For Render deployment, ensure your CSV file is not too large (limit to <20MB)
+6. The model will be trained on first API call if not already trained
