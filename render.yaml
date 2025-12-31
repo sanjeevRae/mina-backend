@@ -6,6 +6,8 @@ services:
     runtime: python-3.11.4
     buildCommand: pip install --upgrade pip && pip install -r requirements.txt
     startCommand: python start_server.py
+    # Removed retrain_model.py from startup to save memory on free tier
+    # Models will be trained on-demand when first requested
     envVars:
       - key: SECRET_KEY
         generateValue: true

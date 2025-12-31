@@ -11,6 +11,7 @@ This guide will help you deploy your telemedicine backend to Render's free tier 
 - ❌ Removed heavy background tasks on startup
 - ❌ Removed immediate database initialization
 - ✅ Only essential directories created
+- ✅ Disabled model retraining on startup
 
 ### 2. **Reduced Dependencies**
 **REMOVED HEAVY PACKAGES:**
@@ -28,6 +29,12 @@ This guide will help you deploy your telemedicine backend to Render's free tier 
 - `scikit-learn`, `pandas`, `numpy`, `joblib` (ML - optimized)
 - `redis` (basic client)
 - `python-jose`, `passlib` (auth)
+- `psutil` (memory monitoring)
+
+### 3. **Fixed Import Issues**
+- ❌ Removed cloudinary imports that were causing deployment failures
+- ✅ All services now import successfully
+- ✅ Local file storage only (no external APIs)
 
 ### 3. **Database Optimization**
 - ✅ Using SQLite instead of PostgreSQL (no additional memory)

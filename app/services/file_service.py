@@ -1,6 +1,3 @@
-import cloudinary
-import cloudinary.uploader
-import cloudinary.api
 from typing import Optional, Dict, Any, List
 import os
 import base64
@@ -13,13 +10,8 @@ from app.config import settings
 
 logger = logging.getLogger(__name__)
 
-# Configure Cloudinary
-if all([settings.CLOUDINARY_CLOUD_NAME, settings.CLOUDINARY_API_KEY, settings.CLOUDINARY_API_SECRET]):
-    cloudinary.config(
-        cloud_name=settings.CLOUDINARY_CLOUD_NAME,
-        api_key=settings.CLOUDINARY_API_KEY,
-        api_secret=settings.CLOUDINARY_API_SECRET
-    )
+# Cloudinary removed for free tier - using local storage only
+# All cloudinary imports and configurations removed to save memory
 
 
 class FileStorageService:
@@ -73,32 +65,27 @@ class FileStorageService:
         return {"valid": True, "file_size": len(file_content), "mime_type": mime_type}
     
     async def upload_file(
-        self, 
-        file_content: bytes, 
-        filename: str, 
+        self,
+        file_content: bytes,
+        filename: str,
         folder: str = "medical_files",
         user_id: Optional[int] = None
     ) -> Dict[str, Any]:
-        """Upload file to appropriate storage service"""
+        """Upload file to local storage only (optimized for free tier)"""
         # Validate file
         validation = self.validate_file(file_content, filename)
         if not validation["valid"]:
             return {"success": False, "error": validation["error"]}
-        
+
         try:
-            # Determine storage strategy based on file size and type
+            # FREE TIER: Store everything locally to save memory
             file_size = len(file_content)
-            file_extension = filename.lower().split('.')[-1] if '.' in filename else ''
-            
+
             if file_size < 100 * 1024:  # < 100KB - store as Base64 in database
                 return await self._store_as_base64(file_content, filename, validation["mime_type"])
-            
-            elif file_extension in ['jpg', 'jpeg', 'png'] and file_size < 10 * 1024 * 1024:  # Images < 10MB - use Cloudinary
-                return await self._upload_to_cloudinary(file_content, filename, folder, user_id)
-            
-            else:  # Other files - store locally on Render disk
+            else:  # All other files - store locally
                 return await self._store_locally(file_content, filename, folder, user_id)
-        
+
         except Exception as e:
             logger.error(f"Error uploading file {filename}: {str(e)}")
             return {"success": False, "error": "Upload failed due to server error"}

@@ -1386,23 +1386,33 @@ if Path("./uploads").exists():
 @app.get("/health")
 async def health_check():
     """Health check endpoint with memory monitoring"""
-    import psutil
     import os
 
-    # Get memory usage
-    process = psutil.Process(os.getpid())
-    memory_usage = process.memory_info().rss / 1024 / 1024  # MB
-    memory_percent = process.memory_percent()
+    memory_info = {"memory_usage_mb": "N/A", "memory_percent": "N/A", "optimization_status": "unknown"}
+
+    try:
+        import psutil
+        # Get memory usage
+        process = psutil.Process(os.getpid())
+        memory_usage = process.memory_info().rss / 1024 / 1024  # MB
+        memory_percent = process.memory_percent()
+
+        memory_info = {
+            "memory_usage_mb": round(memory_usage, 2),
+            "memory_percent": round(memory_percent, 2),
+            "optimization_status": "memory_optimized" if memory_usage < 400 else "high_memory_usage"
+        }
+    except ImportError:
+        # psutil not available, skip memory monitoring
+        memory_info["optimization_status"] = "memory_monitoring_disabled"
 
     return {
         "status": "healthy",
         "version": settings.VERSION,
         "environment": "development" if settings.DEBUG else "production",
         "database": "connected" if engine else "disconnected",
-        "memory_usage_mb": round(memory_usage, 2),
-        "memory_percent": round(memory_percent, 2),
         "render_free_tier_limit": "512 MB",
-        "optimization_status": "memory_optimized" if memory_usage < 400 else "high_memory_usage"
+        **memory_info
     }
 
 
