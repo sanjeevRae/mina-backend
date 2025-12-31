@@ -11,7 +11,9 @@ from typing import List, Dict, Tuple, Any, Optional
 from datetime import datetime
 from pathlib import Path
 import logging
-import gc  # Garbage collection
+import gc
+import requests
+import zipfile
 
 from app.config import settings
 from app.database import get_db
@@ -22,156 +24,108 @@ logger = logging.getLogger(__name__)
 
 
 class SymptomCheckerModel:
-    """ML model for symptom checking and condition prediction using real CSV data"""
+    """ML model for symptom checking and condition prediction using GitHub Releases ZIP"""
 
     def __init__(self):
         self.condition_classifier = None
         self.label_encoders = {}
         self.scaler = StandardScaler()
         self.feature_columns = []
-        # Don't auto-load on initialization to save memory
+        self.model_downloaded = False
+        self.local_model_dir = Path("./models")
 
-    def prepare_features(self, df: pd.DataFrame) -> pd.DataFrame:
-        """Prepare features from CSV data for ML training."""
-        # Make a copy to avoid modifying the original dataframe
-        df = df.copy()
+        # GitHub Releases ZIP URL - YOUR MODEL
+        self.model_zip_url = "https://github.com/sanjeevRae/mina-ml-model/releases/download/v1.0/symptom_model_package.zip"
 
-        # Identify categorical and numerical columns
-        categorical_columns = []
-        numerical_columns = []
+    def download_and_extract_model(self):
+        """Download and extract model ZIP from GitHub Releases"""
+        if self.model_downloaded and self.local_model_dir.exists():
+            logger.info("Model already downloaded and extracted")
+            return True
 
-        for col in df.columns:
-            if col != 'diagnosis':  # Target column
-                if df[col].dtype == 'object' or col in ['gender', 'age_group']:  # Add other categorical columns as needed
-                    categorical_columns.append(col)
-                else:
-                    numerical_columns.append(col)
+        try:
+            logger.info(f"Downloading model ZIP from: {self.model_zip_url}")
 
-        # Encode categorical variables
-        for col in categorical_columns:
-            if col not in self.label_encoders:
-                self.label_encoders[col] = LabelEncoder()
-                df[col] = self.label_encoders[col].fit_transform(df[col].astype(str))
+            # Create models directory
+            self.local_model_dir.mkdir(exist_ok=True)
+
+            # Download the ZIP file
+            zip_path = self.local_model_dir / "model.zip"
+            response = requests.get(self.model_zip_url, stream=True)
+            response.raise_for_status()
+
+            with open(zip_path, 'wb') as f:
+                for chunk in response.iter_content(chunk_size=8192):
+                    f.write(chunk)
+
+            # Extract the ZIP file
+            logger.info("Extracting model files...")
+            with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+                zip_ref.extractall(self.local_model_dir)
+
+            # Remove the ZIP file after extraction
+            zip_path.unlink()
+
+            # Check what was extracted
+            extracted_files = list(self.local_model_dir.glob("*"))
+            logger.info(f"Extracted files: {[f.name for f in extracted_files]}")
+
+            self.model_downloaded = True
+            return True
+
+        except Exception as e:
+            logger.error(f"Failed to download/extract model: {e}")
+            return False
+
+    def load_model(self):
+        """Load the model from extracted files"""
+        if not self.model_downloaded:
+            if not self.download_and_extract_model():
+                raise FileNotFoundError("Model not available and download/extraction failed")
+
+        try:
+            logger.info(f"Loading model from: {self.local_model_dir}")
+
+            # Look for model files in the extracted directory
+            model_files = list(self.local_model_dir.glob("*.joblib")) + list(self.local_model_dir.glob("*.pkl"))
+
+            if not model_files:
+                raise FileNotFoundError("No model files found in extracted directory")
+
+            # Load the first model file found
+            model_file = model_files[0]
+            logger.info(f"Loading model file: {model_file}")
+
+            model_data = joblib.load(model_file)
+
+            # Handle different model formats
+            if isinstance(model_data, dict):
+                self.condition_classifier = model_data.get('condition_classifier')
+                self.label_encoders = model_data.get('label_encoders', {})
+                self.scaler = model_data.get('scaler')
+                self.feature_columns = model_data.get('feature_columns', [])
             else:
-                df[col] = self.label_encoders[col].transform(df[col].astype(str))
+                # Assume it's just the classifier
+                self.condition_classifier = model_data
+                logger.warning("Model loaded in simple format - some features may not work")
 
-        # Identify feature columns (all except diagnosis)
-        self.feature_columns = [col for col in df.columns if col != 'diagnosis']
+            if self.condition_classifier is None:
+                raise ValueError("Failed to load model classifier")
 
-        return df[self.feature_columns]
+            logger.info("Model loaded successfully")
 
-    def train(self, real_data_path: str = "data/symptom_data.csv") -> Dict[str, float]:
-        """Train the symptom checker model using real CSV data."""
-        if not os.path.exists(real_data_path):
-            raise FileNotFoundError(f"CSV data file not found: {real_data_path}")
-
-        logger.info(f"Loading real dataset from {real_data_path}...")
-
-        # Load data in chunks to reduce memory usage
-        chunk_size = 500  # Reduced chunk size
-        chunks = pd.read_csv(real_data_path, chunksize=chunk_size)
-
-        # Process the first chunk to get column names and initialize
-        first_chunk = next(chunks)
-        all_chunks = [first_chunk]
-
-        # Process remaining chunks
-        for chunk in chunks:
-            all_chunks.append(chunk)
-
-        # Concatenate all chunks
-        df = pd.concat(all_chunks, ignore_index=True)
-
-        # Validate that the dataset has the required 'diagnosis' column
-        if 'diagnosis' in df.columns:
-            # Prepare features and target
-            X = self.prepare_features(df)
-            y = df['diagnosis']
-        else:
-            raise ValueError("CSV file must contain a 'diagnosis' column for the target variable")
-
-        # Split data
-        X_train, X_test, y_train, y_test = train_test_split(
-            X, y, test_size=0.15, random_state=42, stratify=y  # Reduced test size
-        )
-
-        # Clean up original dataframe to save memory
-        del df
-        gc.collect()
-
-        # Scale features
-        X_train_scaled = self.scaler.fit_transform(X_train)
-        X_test_scaled = self.scaler.transform(X_test)
-
-        # Clean up original X, y to save memory
-        del X, y
-        gc.collect()
-
-        # Train condition classifier with minimal memory usage
-        logger.info("Training condition classifier...")
-        self.condition_classifier = RandomForestClassifier(
-            n_estimators=50,       # Further reduced from 100
-            max_depth=5,           # Further reduced from 10
-            min_samples_split=20,  # Increased to reduce overfitting and memory
-            min_samples_leaf=10,   # Increased to reduce overfitting and memory
-            random_state=42,
-            n_jobs=1,              # Use single job to reduce memory usage
-            max_features='sqrt'    # Use sqrt of features to reduce memory
-        )
-        self.condition_classifier.fit(X_train_scaled, y_train)
-
-        # Evaluate model
-        y_pred = self.condition_classifier.predict(X_test_scaled)
-        metrics = {
-            "condition_accuracy": accuracy_score(y_test, y_pred),
-            "condition_precision": precision_score(y_test, y_pred, average="weighted"),
-            "condition_recall": recall_score(y_test, y_pred, average="weighted"),
-            "condition_f1": f1_score(y_test, y_pred, average="weighted"),
-        }
-
-        # Clean up training data to save memory
-        del X_train, X_test, y_train, y_test, X_train_scaled, X_test_scaled, y_pred
-        gc.collect()
-
-        logger.info(f"Training completed. Condition accuracy: {metrics['condition_accuracy']:.3f}")
-
-        return metrics
-
-    def save_model(self, version: str = None) -> str:
-        """Save trained models to disk"""
-        if version is None:
-            version = datetime.now().strftime("%Y%m%d_%H%M%S")
-
-        model_dir = settings.model_directory
-        model_path = model_dir / f"symptom_checker_v{version}"
-        model_path.mkdir(exist_ok=True)
-
-        # Save models
-        if self.condition_classifier is not None:
-            joblib.dump(self.condition_classifier, model_path / "condition_classifier.joblib")
-        joblib.dump(self.label_encoders, model_path / "label_encoders.joblib")
-        joblib.dump(self.scaler, model_path / "scaler.joblib")
-        joblib.dump(self.feature_columns, model_path / "feature_columns.joblib")
-
-        logger.info(f"Models saved to {model_path}")
-        return str(model_path)
-
-    def load_model(self, model_path: str):
-        """Load trained models from disk"""
-        model_path = Path(model_path)
-
-        if (model_path / "condition_classifier.joblib").exists():
-            self.condition_classifier = joblib.load(model_path / "condition_classifier.joblib")
-        self.label_encoders = joblib.load(model_path / "label_encoders.joblib")
-        self.scaler = joblib.load(model_path / "scaler.joblib")
-        self.feature_columns = joblib.load(model_path / "feature_columns.joblib")
-
-        logger.info(f"Models loaded from {model_path}")
+        except Exception as e:
+            logger.error(f"Error loading model: {e}")
+            raise
 
     def predict(self, symptoms: List[SymptomInput], patient_info: Optional[PatientInfo] = None) -> Dict:
         """Predict conditions based on symptoms using the trained model"""
+        # Ensure model is loaded
         if self.condition_classifier is None:
-            raise ValueError("Model not trained or loaded")
+            self.load_model()
+
+        if self.condition_classifier is None:
+            raise ValueError("Model not available")
 
         # Prepare input data
         input_data = self._prepare_input(symptoms, patient_info)
@@ -284,8 +238,6 @@ class SymptomCheckerModel:
         return questions[:3]  # Limit to 3 questions
 
 
-# Global model instance - Initialize only when needed
 def get_symptom_checker_model() -> SymptomCheckerModel:
     """Get or create the global symptom checker model instance"""
-    # Create a new instance each time to avoid memory retention
     return SymptomCheckerModel()
