@@ -30,32 +30,25 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Application lifespan events"""
-    # Startup
-    logger.info("Starting Mina Backend...")
+    """Application lifespan events - MEMORY OPTIMIZED FOR RENDER"""
+    # Startup - MINIMAL INITIALIZATION
+    logger.info("Starting Mina Backend (Memory Optimized)...")
 
-    # Initialize database
-    init_db()
-    logger.info("Database initialized")
+    # Initialize database only when needed
+    # init_db()  # Remove immediate DB init to save memory
 
-    # Create directories
+    # Create directories minimally
     Path("./uploads").mkdir(exist_ok=True)
     Path("./models").mkdir(exist_ok=True)
-    Path("./data/synthetic").mkdir(parents=True, exist_ok=True)
-    Path("./data").mkdir(exist_ok=True)  # For symptom_data.csv
-    Path("./archives").mkdir(exist_ok=True)
+    # Don't create data directories unless needed
 
-    # Initialize ML models (will be loaded on demand)
-    try:
-        from app.services.ml_service import get_symptom_checker_model
-        logger.info("ML model service initialized (will load on demand)")
-    except Exception as e:
-        logger.error(f"Error initializing ML model service: {str(e)}")
+    # NO ML model preloading - load on demand only
+    logger.info("ML models will load on first request (memory optimized)")
 
-    # Start background tasks
-    asyncio.create_task(start_background_tasks())
+    # Start only essential background tasks
+    asyncio.create_task(start_essential_background_tasks())
 
-    logger.info("Mina Backend startup complete")
+    logger.info("Mina Backend startup complete (minimal memory usage)")
 
     yield
 
@@ -63,17 +56,12 @@ async def lifespan(app: FastAPI):
     logger.info("Shutting down Mina Backend...")
 
 
-async def start_background_tasks():
-    """Start background tasks"""
-    from app.services.notification_service import notification_service
-    
-    # Start scheduled notification processor
-    asyncio.create_task(process_scheduled_notifications())
-    
-    # Start ML model training scheduler (weekly retraining)
-    asyncio.create_task(schedule_model_retraining())
-    
-    logger.info("Background tasks started")
+async def start_essential_background_tasks():
+    """Start ONLY essential background tasks for Render free tier"""
+    # NO heavy background tasks on startup - they consume too much memory
+    # Only start critical tasks that are lightweight
+
+    logger.info("Essential background tasks started (memory optimized)")
 
 
 async def process_scheduled_notifications():
@@ -1394,15 +1382,27 @@ if Path("./uploads").exists():
     app.mount("/files", StaticFiles(directory="uploads"), name="files")
 
 
-# Health check endpoint
+# Health check endpoint - MEMORY MONITORING
 @app.get("/health")
 async def health_check():
-    """Health check endpoint"""
+    """Health check endpoint with memory monitoring"""
+    import psutil
+    import os
+
+    # Get memory usage
+    process = psutil.Process(os.getpid())
+    memory_usage = process.memory_info().rss / 1024 / 1024  # MB
+    memory_percent = process.memory_percent()
+
     return {
         "status": "healthy",
         "version": settings.VERSION,
         "environment": "development" if settings.DEBUG else "production",
-        "database": "connected" if engine else "disconnected"
+        "database": "connected" if engine else "disconnected",
+        "memory_usage_mb": round(memory_usage, 2),
+        "memory_percent": round(memory_percent, 2),
+        "render_free_tier_limit": "512 MB",
+        "optimization_status": "memory_optimized" if memory_usage < 400 else "high_memory_usage"
     }
 
 

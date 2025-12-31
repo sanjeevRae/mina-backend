@@ -1,4 +1,4 @@
-# Render deployment configuration
+# Render deployment configuration - MEMORY OPTIMIZED FOR FREE TIER
 services:
   - type: web
     name: telemedicine-backend
@@ -11,13 +11,21 @@ services:
         generateValue: true
       - key: DEBUG
         value: "false"
+      - key: DATABASE_URL
+        value: "sqlite:///./telemedicine_dev.db"
+      - key: REDIS_URL
+        value: "redis://red-d58fpluuk2gs73djegfg:PY5FJC6eNkCY6Vjiuj7dJ9jgUd4DjbyN@singapore-keyvalue.render.com:6379"
+      - key: ENABLE_ML_FEATURES
+        value: "true"
+      - key: ENABLE_VIDEO_CALLS
+        value: "true"
+      - key: ENABLE_PUSH_NOTIFICATIONS
+        value: "false"
+      - key: ENABLE_EMAIL_NOTIFICATIONS
+        value: "true"
+    # Memory optimization settings
+    plan: free
+    autoDeploy: false  # Manual deploys to control memory usage
 
-databases:
-  - name: telemedicine-db
-    databaseName: telemedicine
-    user: telemedicine_user
-
-services:
-  - type: redis
-    name: telemedicine-redis
-    ipAllowList: [] # only allow internal connections
+# NO PostgreSQL DATABASE - Using SQLite for free tier
+# NO separate Redis service - Using external Redis URL
