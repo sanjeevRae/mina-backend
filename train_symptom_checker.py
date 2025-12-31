@@ -19,25 +19,25 @@ from datetime import datetime
 def train_model(data_path: str = "data/symptom_data.csv"):
     """Train the symptom checker model with CSV data"""
     print(f"Starting model training with data from: {data_path}")
-    
+
     # Check if data file exists
     if not os.path.exists(data_path):
         print(f"Error: Data file not found at {data_path}")
         return False
-    
+
     # Initialize the model
     model = SymptomCheckerModel()
-    
+
     try:
         # Train the model
         print("Training the model...")
         metrics = model.train(real_data_path=data_path)
-        
+
         # Save the trained model
         print("Saving the trained model...")
         version = datetime.now().strftime("%Y%m%d_%H%M%S")
         model_path = model.save_model(version)
-        
+
         # Update database with model info
         print("Updating model information in database...")
         db = SessionLocal()
@@ -47,7 +47,7 @@ def train_model(data_path: str = "data/symptom_data.csv"):
                 MLModel.model_name == "symptom_checker",
                 MLModel.is_active == True
             ).update({"is_active": False})
-            
+
             # Save new model info
             model_info = MLModel(
                 model_name="symptom_checker",
@@ -63,7 +63,7 @@ def train_model(data_path: str = "data/symptom_data.csv"):
                 is_active=True,
                 created_at=datetime.utcnow()
             )
-            
+
             db.add(model_info)
             db.commit()
             print("Model training completed successfully!")
@@ -71,16 +71,16 @@ def train_model(data_path: str = "data/symptom_data.csv"):
             print("Metrics:")
             for key, value in metrics.items():
                 print(f"  {key}: {value:.4f}")
-                
+
         except Exception as e:
             db.rollback()
             print(f"Error updating database: {str(e)}")
             return False
         finally:
             db.close()
-        
+
         return True
-        
+
     except Exception as e:
         print(f"Error during model training: {str(e)}")
         import traceback

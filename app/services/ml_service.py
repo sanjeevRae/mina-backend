@@ -82,15 +82,28 @@ class SymptomCheckerModel:
             raise FileNotFoundError(f"CSV data file not found: {real_data_path}")
 
         logger.info(f"Loading real dataset from {real_data_path}...")
-        df = pd.read_csv(real_data_path)
+        # Load data in chunks to reduce memory usage
+        chunk_size = 1000
+        chunks = pd.read_csv(real_data_path, chunksize=chunk_size)
+
+        # Process the first chunk to get column names and initialize
+        first_chunk = next(chunks)
+        all_chunks = [first_chunk]
+
+        # Process remaining chunks
+        for chunk in chunks:
+            all_chunks.append(chunk)
+
+        # Concatenate all chunks
+        df = pd.concat(all_chunks, ignore_index=True)
 
         # Validate that the dataset has the required 'diagnosis' column
-        if 'diagnosis' not in df.columns:
+        if 'diagnosis' in df.columns:
+            # Prepare features and target
+            X = self.prepare_features(df)
+            y = df['diagnosis']
+        else:
             raise ValueError("CSV file must contain a 'diagnosis' column for the target variable")
-
-        # Prepare features and target
-        X = self.prepare_features(df)
-        y = df['diagnosis']
 
         # Split data
         X_train, X_test, y_train, y_test = train_test_split(
@@ -101,15 +114,15 @@ class SymptomCheckerModel:
         X_train_scaled = self.scaler.fit_transform(X_train)
         X_test_scaled = self.scaler.transform(X_test)
 
-        # Train condition classifier
+        # Train condition classifier with reduced memory usage
         logger.info("Training condition classifier...")
         self.condition_classifier = RandomForestClassifier(
-            n_estimators=200,
-            max_depth=20,
-            min_samples_split=5,
-            min_samples_leaf=2,
+            n_estimators=100,  # Reduced from 200 to save memory
+            max_depth=10,      # Reduced from 20 to save memory
+            min_samples_split=10,  # Increased to reduce overfitting and memory
+            min_samples_leaf=5,    # Increased to reduce overfitting and memory
             random_state=42,
-            n_jobs=-1
+            n_jobs=1  # Use single job to reduce memory usage
         )
         self.condition_classifier.fit(X_train_scaled, y_train)
 
@@ -122,8 +135,8 @@ class SymptomCheckerModel:
             "condition_f1": f1_score(y_test, y_pred, average="weighted"),
         }
 
-        # Cross-validation
-        cv_scores = cross_val_score(self.condition_classifier, X_train_scaled, y_train, cv=5)
+        # Cross-validation with fewer folds to save memory
+        cv_scores = cross_val_score(self.condition_classifier, X_train_scaled, y_train, cv=3)
         metrics["condition_cv_score"] = cv_scores.mean()
 
         logger.info(f"Training completed. Condition accuracy: {metrics['condition_accuracy']:.3f}")

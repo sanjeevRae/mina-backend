@@ -45,13 +45,12 @@ async def lifespan(app: FastAPI):
     Path("./data").mkdir(exist_ok=True)  # For symptom_data.csv
     Path("./archives").mkdir(exist_ok=True)
 
-    # Initialize ML models
+    # Initialize ML models (will be loaded on demand)
     try:
         from app.services.ml_service import get_symptom_checker_model
-        ml_model = get_symptom_checker_model()
-        logger.info("ML model initialized")
+        logger.info("ML model service initialized (will load on demand)")
     except Exception as e:
-        logger.error(f"Error initializing ML model: {str(e)}")
+        logger.error(f"Error initializing ML model service: {str(e)}")
 
     # Start background tasks
     asyncio.create_task(start_background_tasks())
