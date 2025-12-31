@@ -133,10 +133,14 @@ dmypy.json
 # Project specific
 *.db
 uploads/
-# models/   # Commented out to allow app/models to be tracked
-archives/
-data/
 .DS_Store
+# data/
+!data/symptom_data.csv
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
 .vscode/
 .idea/
 *.swp
