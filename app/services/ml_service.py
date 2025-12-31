@@ -34,8 +34,8 @@ class SymptomCheckerModel:
         self.model_downloaded = False
         self.local_model_dir = Path("./models")
 
-        # GitHub Releases ZIP URL - YOUR MODEL
-        self.model_zip_url = "https://github.com/sanjeevRae/mina-ml-model/releases/download/v1.0/symptom_model_package.zip"
+        # GitHub Releases ZIP URL - Configurable via environment variable
+        self.model_zip_url = settings.MODEL_DOWNLOAD_URL or "https://github.com/sanjeevRae/mina-ml-model/releases/download/v1.0/symptom_model_package.zip"
 
     def download_and_extract_model(self):
         """Download and extract model ZIP from GitHub Releases"""
@@ -122,45 +122,128 @@ class SymptomCheckerModel:
         """Predict conditions based on symptoms using the trained model"""
         # Ensure model is loaded
         if self.condition_classifier is None:
-            self.load_model()
+            try:
+                self.load_model()
+            except Exception as e:
+                logger.warning(f"Failed to load model: {e}. Using fallback predictions.")
+                return self._fallback_predictions(symptoms, patient_info)
 
         if self.condition_classifier is None:
-            raise ValueError("Model not available")
+            logger.warning("Model not available, using fallback predictions")
+            return self._fallback_predictions(symptoms, patient_info)
 
-        # Prepare input data
-        input_data = self._prepare_input(symptoms, patient_info)
+        try:
+            # Prepare input data
+            input_data = self._prepare_input(symptoms, patient_info)
 
-        # Make predictions
-        condition_probs = self.condition_classifier.predict_proba([input_data])[0]
-        condition_classes = self.condition_classifier.classes_
+            # Make predictions
+            condition_probs = self.condition_classifier.predict_proba([input_data])[0]
+            condition_classes = self.condition_classifier.classes_
 
-        # Get top predictions
-        top_indices = np.argsort(condition_probs)[-5:][::-1]  # Top 5
+            # Get top predictions
+            top_indices = np.argsort(condition_probs)[-5:][::-1]  # Top 5
+            predictions = []
+
+            for idx in top_indices:
+                if condition_probs[idx] > 0.01:  # Only include predictions with >1% probability
+                    condition = condition_classes[idx]
+
+                    predictions.append(ConditionPrediction(
+                        condition_name=condition,
+                        probability=float(condition_probs[idx]),
+                        urgency_level=3,  # Default urgency level
+                        specialist_recommended="general_practitioner",  # Default specialist
+                        description=f"Based on your symptoms, this condition has a {condition_probs[idx]:.1%} probability"
+                    ))
+
+            # Calculate overall confidence score
+            confidence_score = float(max(condition_probs))
+
+            # Generate follow-up questions
+            follow_up_questions = self._generate_follow_up_questions(symptoms, predictions)
+
+            return {
+                "predictions": predictions,
+                "urgency_score": confidence_score,  # Use confidence as urgency score for now
+                "follow_up_questions": follow_up_questions,
+                "confidence_score": confidence_score
+            }
+        except Exception as e:
+            logger.error(f"Error during prediction: {e}. Using fallback predictions.")
+            return self._fallback_predictions(symptoms, patient_info)
+
+    def _fallback_predictions(self, symptoms: List[SymptomInput], patient_info: Optional[PatientInfo] = None) -> Dict:
+        """Provide fallback predictions when model is not available"""
+        logger.info("Using fallback prediction logic")
+
+        # Simple rule-based predictions based on symptoms
+        symptom_names = [s.symptom.lower() for s in symptoms]
+
         predictions = []
+        urgency_score = 0.3  # Default low urgency
 
-        for idx in top_indices:
-            if condition_probs[idx] > 0.01:  # Only include predictions with >1% probability
-                condition = condition_classes[idx]
+        # Check for emergency symptoms
+        emergency_symptoms = ['chest pain', 'difficulty breathing', 'severe headache', 'unconsciousness']
+        if any(es in ' '.join(symptom_names) for es in emergency_symptoms):
+            predictions.append(ConditionPrediction(
+                condition_name="Emergency Condition",
+                probability=0.8,
+                urgency_level=5,
+                specialist_recommended="emergency_medicine",
+                description="Symptoms suggest a medical emergency - seek immediate care"
+            ))
+            urgency_score = 0.9
 
-                predictions.append(ConditionPrediction(
-                    condition_name=condition,
-                    probability=float(condition_probs[idx]),
-                    urgency_level=3,  # Default urgency level
-                    specialist_recommended="general_practitioner",  # Default specialist
-                    description=f"Based on your symptoms, this condition has a {condition_probs[idx]:.1%} probability"
-                ))
+        # Check for common conditions
+        elif 'fever' in symptom_names:
+            predictions.append(ConditionPrediction(
+                condition_name="Infectious Disease",
+                probability=0.6,
+                urgency_level=3,
+                specialist_recommended="internal_medicine",
+                description="Fever may indicate infection or inflammatory condition"
+            ))
+            urgency_score = 0.5
 
-        # Calculate overall confidence score
-        confidence_score = float(max(condition_probs))
+        elif 'cough' in symptom_names:
+            predictions.append(ConditionPrediction(
+                condition_name="Respiratory Condition",
+                probability=0.5,
+                urgency_level=2,
+                specialist_recommended="pulmonology",
+                description="Cough may be related to respiratory issues"
+            ))
+            urgency_score = 0.4
+
+        elif any(s in symptom_names for s in ['headache', 'migraine']):
+            predictions.append(ConditionPrediction(
+                condition_name="Neurological Condition",
+                probability=0.4,
+                urgency_level=2,
+                specialist_recommended="neurology",
+                description="Headache may be related to various neurological conditions"
+            ))
+            urgency_score = 0.3
+
+        else:
+            # Generic prediction for other symptoms
+            predictions.append(ConditionPrediction(
+                condition_name="General Medical Condition",
+                probability=0.3,
+                urgency_level=2,
+                specialist_recommended="general_practitioner",
+                description="Symptoms suggest consulting a healthcare provider"
+            ))
 
         # Generate follow-up questions
         follow_up_questions = self._generate_follow_up_questions(symptoms, predictions)
 
         return {
             "predictions": predictions,
-            "urgency_score": confidence_score,  # Use confidence as urgency score for now
+            "urgency_score": urgency_score,
             "follow_up_questions": follow_up_questions,
-            "confidence_score": confidence_score
+            "confidence_score": 0.5,  # Lower confidence for fallback
+            "model_status": "fallback_mode"
         }
 
     def _prepare_input(self, symptoms: List[SymptomInput], patient_info: Optional[PatientInfo]) -> List[float]:

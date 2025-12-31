@@ -25,6 +25,8 @@ services:
         value: "false"
       - key: ENABLE_EMAIL_NOTIFICATIONS
         value: "true"
+      - key: MODEL_DOWNLOAD_URL
+        value: "https://github.com/sanjeevRae/mina-ml-model/releases/download/v1.0/symptom_model_package.zip"
     # Memory optimization settings
     plan: free
     autoDeploy: false  # Manual deploys to control memory usage

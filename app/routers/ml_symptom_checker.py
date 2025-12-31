@@ -24,53 +24,9 @@ router = APIRouter(prefix="/ml", tags=["machine learning"])
 logger = logging.getLogger(__name__)
 
 
-def _load_or_train_model(db: Session) -> 'SymptomCheckerModel':
-    """Helper function to load or train ML model"""
-    ml_model = get_symptom_checker_model()
-
-    if ml_model.condition_classifier is None:
-        try:
-            # Try to load existing model
-            latest_model = db.query(MLModel).filter(
-                MLModel.model_name == "symptom_checker",
-                MLModel.is_active == True
-            ).order_by(MLModel.created_at.desc()).first()
-
-            if latest_model:
-                ml_model.load_model(latest_model.file_path)
-                logger.info("Loaded existing ML model")
-            else:
-                # Train new model
-                logger.info("Training new ML model...")
-                training_metrics = ml_model.train(real_data_path="data/symptom_data.csv")
-                model_path = ml_model.save_model()
-
-                # Save model info
-                model_info = MLModel(
-                    model_name="symptom_checker",
-                    version="1.0.0",
-                    file_path=model_path,
-                    training_data_size=0,
-                    features_used=ml_model.feature_columns,
-                    accuracy=training_metrics.get("condition_accuracy"),
-                    precision=training_metrics.get("condition_precision"),
-                    recall=training_metrics.get("condition_recall"),
-                    f1_score=training_metrics.get("condition_f1"),
-                    cross_validation_score=training_metrics.get("condition_cv_score"),
-                    is_active=True
-                )
-                db.add(model_info)
-                db.commit()
-                logger.info(f"Model trained successfully. Accuracy: {training_metrics.get('condition_accuracy', 0):.3f}")
-
-        except Exception as e:
-            logger.error(f"Error loading/training model: {str(e)}")
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="ML model is not available. Please try again later."
-            )
-
-    return ml_model
+def _get_ml_model() -> 'SymptomCheckerModel':
+    """Get ML model instance - model loads automatically when needed"""
+    return get_symptom_checker_model()
 
 
 @router.post("/symptom-checker", response_model=SymptomCheckerResult)
@@ -80,7 +36,7 @@ async def symptom_checker_simple(
     db: Session = Depends(get_db)
 ):
     """Simple symptom checker with basic symptom list input"""
-    ml_model = _load_or_train_model(db)
+    ml_model = _get_ml_model()
 
     # Convert simple symptoms to proper format
     from app.schemas.ml_models import SymptomInput
@@ -96,7 +52,7 @@ async def symptom_checker_detailed(
     db: Session = Depends(get_db)
 ):
     """Detailed symptom checker with severity and patient info"""
-    ml_model = _load_or_train_model(db)
+    ml_model = _get_ml_model()
 
     return await _process_symptom_check(
         ml_model,

@@ -80,6 +80,7 @@ class Settings(BaseSettings):
     MODEL_PATH: str = "./models/"
     SYNTHETIC_DATA_PATH: str = "./data/synthetic/"
     MEDICAL_DATA_PATH: str = "./data/medical/"
+    MODEL_DOWNLOAD_URL: Optional[str] = None
     
     # Rate Limiting
     RATE_LIMIT_REQUESTS: int = 100
