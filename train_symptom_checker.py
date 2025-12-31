@@ -1,40 +1,99 @@
+#!/usr/bin/env python3
+"""
+Script to train the symptom checker model using symptom_data.csv
+"""
 
-import pandas as pd
-from sklearn.linear_model import SGDClassifier
-from sklearn.metrics import accuracy_score
-import joblib
-import numpy as np
+import os
+import sys
+from pathlib import Path
 
-# Settings
-DATA_PATH = 'data/symptom_data.csv'
-MODEL_PATH = 'models/symptom_checker_model.joblib'
-CHUNKSIZE = 10000  # Adjust based on your RAM
-TARGET_COL = 'diagnosis'
+# Add the app directory to the path
+sys.path.append(str(Path(__file__).parent))
 
-# Initialize model for incremental learning
-clf = SGDClassifier(loss='log_loss', max_iter=5, tol=None)
-classes = None
-first = True
-X_test, y_test = None, None
+from app.services.ml_service import SymptomCheckerModel
+from app.database import SessionLocal
+from app.models.ml_models import MLModel
+from datetime import datetime
 
-for chunk in pd.read_csv(DATA_PATH, chunksize=CHUNKSIZE):
-	X = chunk.drop(TARGET_COL, axis=1)
-	y = chunk[TARGET_COL]
-	if first:
-		classes = np.unique(y)
-		# Save a test set from the first chunk
-		X_test, y_test = X.iloc[:1000], y.iloc[:1000]
-		X_train, y_train = X.iloc[1000:], y.iloc[1000:]
-		clf.partial_fit(X_train, y_train, classes=classes)
-		first = False
-	else:
-		clf.partial_fit(X, y)
 
-# Evaluate
-if X_test is not None and y_test is not None:
-	y_pred = clf.predict(X_test)
-	print('Accuracy:', accuracy_score(y_test, y_pred))
+def train_model(data_path: str = "data/symptom_data.csv"):
+    """Train the symptom checker model with CSV data"""
+    print(f"Starting model training with data from: {data_path}")
+    
+    # Check if data file exists
+    if not os.path.exists(data_path):
+        print(f"Error: Data file not found at {data_path}")
+        return False
+    
+    # Initialize the model
+    model = SymptomCheckerModel()
+    
+    try:
+        # Train the model
+        print("Training the model...")
+        metrics = model.train(real_data_path=data_path)
+        
+        # Save the trained model
+        print("Saving the trained model...")
+        version = datetime.now().strftime("%Y%m%d_%H%M%S")
+        model_path = model.save_model(version)
+        
+        # Update database with model info
+        print("Updating model information in database...")
+        db = SessionLocal()
+        try:
+            # Deactivate old models
+            db.query(MLModel).filter(
+                MLModel.model_name == "symptom_checker",
+                MLModel.is_active == True
+            ).update({"is_active": False})
+            
+            # Save new model info
+            model_info = MLModel(
+                model_name="symptom_checker",
+                version=version,
+                file_path=model_path,
+                training_data_size=0,  # Will be calculated based on the dataset
+                features_used=model.feature_columns,
+                accuracy=metrics.get("condition_accuracy"),
+                precision=metrics.get("condition_precision"),
+                recall=metrics.get("condition_recall"),
+                f1_score=metrics.get("condition_f1"),
+                cross_validation_score=metrics.get("condition_cv_score"),
+                is_active=True,
+                created_at=datetime.utcnow()
+            )
+            
+            db.add(model_info)
+            db.commit()
+            print("Model training completed successfully!")
+            print(f"Model saved to: {model_path}")
+            print("Metrics:")
+            for key, value in metrics.items():
+                print(f"  {key}: {value:.4f}")
+                
+        except Exception as e:
+            db.rollback()
+            print(f"Error updating database: {str(e)}")
+            return False
+        finally:
+            db.close()
+        
+        return True
+        
+    except Exception as e:
+        print(f"Error during model training: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return False
 
-# Save the trained model
-joblib.dump(clf, MODEL_PATH)
-print(f'Model saved to {MODEL_PATH}')
+
+if __name__ == "__main__":
+    # Use command line argument if provided, otherwise default
+    data_path = sys.argv[1] if len(sys.argv) > 1 else "data/symptom_data.csv"
+    success = train_model(data_path)
+    if success:
+        print("\n[OK] Model training completed successfully!")
+    else:
+        print("\n[ERROR] Model training failed!")
+        sys.exit(1)

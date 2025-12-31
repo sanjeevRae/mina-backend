@@ -33,24 +33,33 @@ async def lifespan(app: FastAPI):
     """Application lifespan events"""
     # Startup
     logger.info("Starting Mina Backend...")
-    
+
     # Initialize database
     init_db()
     logger.info("Database initialized")
-    
+
     # Create directories
     Path("./uploads").mkdir(exist_ok=True)
     Path("./models").mkdir(exist_ok=True)
     Path("./data/synthetic").mkdir(parents=True, exist_ok=True)
+    Path("./data").mkdir(exist_ok=True)  # For symptom_data.csv
     Path("./archives").mkdir(exist_ok=True)
-    
+
+    # Initialize ML models
+    try:
+        from app.services.ml_service import get_symptom_checker_model
+        ml_model = get_symptom_checker_model()
+        logger.info("ML model initialized")
+    except Exception as e:
+        logger.error(f"Error initializing ML model: {str(e)}")
+
     # Start background tasks
     asyncio.create_task(start_background_tasks())
-    
+
     logger.info("Mina Backend startup complete")
-    
+
     yield
-    
+
     # Shutdown
     logger.info("Shutting down Mina Backend...")
 

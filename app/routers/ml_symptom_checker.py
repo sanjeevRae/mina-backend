@@ -1,20 +1,29 @@
-
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
+from typing import List
+from datetime import datetime
 from app.database import get_db
 from app.auth import get_current_user
 from app.models.user import User
-from app.models.ml_models import SymptomChecker
-from app.schemas.ml_models import SymptomCheckerResult, SimpleSymptomInput
+from app.models.ml_models import SymptomChecker, MLModel
+from app.schemas.ml_models import (
+    SymptomCheckerResult, 
+    SimpleSymptomInput,
+    SymptomCheckerStart,
+    SymptomCheckerSession,
+    SymptomCheckerFeedback,
+    MLModelInfo,
+    ModelTrainingRequest
+)
 from app.services.ml_service import get_symptom_checker_model
 import uuid
 import logging
+from fastapi import Query
 
 router = APIRouter(prefix="/ml", tags=["machine learning"])
 logger = logging.getLogger(__name__)
 
 
-# Only the new endpoint should remain. Remove all old/unused endpoints and references.
 @router.post("/symptom-checker", response_model=SymptomCheckerResult)
 async def symptom_checker(
     symptom_data: SimpleSymptomInput,
@@ -26,12 +35,67 @@ async def symptom_checker(
     use the trained model to predict the most likely conditions.
     """
     try:
+        # Get ML model
         ml_model = get_symptom_checker_model()
+
+        # Check if model is trained
+        if ml_model.condition_classifier is None:
+            # Try to load existing model
+            try:
+                # Look for the latest model
+                latest_model = db.query(MLModel).filter(
+                    MLModel.model_name == "symptom_checker",
+                    MLModel.is_active == True
+                ).order_by(MLModel.created_at.desc()).first()
+
+                if latest_model:
+                    ml_model.load_model(latest_model.file_path)
+                else:
+                    # Train a new model using the CSV data
+                    logger.info("No trained model found. Training new model from CSV data...")
+                    training_metrics = ml_model.train(real_data_path="data/symptom_data.csv")
+
+                    # Save the model
+                    model_path = ml_model.save_model()
+
+                    # Save model info to database
+                    model_info = MLModel(
+                        model_name="symptom_checker",
+                        version="1.0.0",
+                        file_path=model_path,
+                        training_data_size=0,  # Will be updated with actual size
+                        features_used=ml_model.feature_columns,
+                        accuracy=training_metrics.get("condition_accuracy"),
+                        precision=training_metrics.get("condition_precision"),
+                        recall=training_metrics.get("condition_recall"),
+                        f1_score=training_metrics.get("condition_f1"),
+                        cross_validation_score=training_metrics.get("condition_cv_score"),
+                        is_active=True
+                    )
+
+                    db.add(model_info)
+                    db.commit()
+
+                    logger.info(f"Model trained successfully. Accuracy: {training_metrics.get('condition_accuracy', 0):.3f}")
+
+            except Exception as e:
+                logger.error(f"Error loading/training model: {str(e)}")
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="ML model is not available. Please try again later."
+                )
+
+        # Convert simple symptoms to proper format
         from app.schemas.ml_models import SymptomInput
         symptoms = [SymptomInput(symptom=s, severity=5) for s in symptom_data.symptoms]
+        
+        # Make prediction
         prediction_result = ml_model.predict(symptoms=symptoms, patient_info=None)
 
+        # Generate session ID
         session_id = f"symptom_{uuid.uuid4().hex[:16]}"
+
+        # Store session in database
         session = SymptomChecker(
             session_id=session_id,
             user_id=current_user.id,
@@ -60,39 +124,6 @@ async def symptom_checker(
             detail=f"Error processing symptoms: {str(e)}"
         )
 
-# Helper for recommendations (reuse your existing logic)
-def _generate_recommendations(prediction_result: dict) -> list:
-    recommendations = []
-    urgency_score = prediction_result.get("urgency_score", 0)
-    predictions = prediction_result.get("predictions", [])
-    if urgency_score >= 0.8:
-        recommendations.append("🚨 Seek immediate emergency medical attention")
-    elif urgency_score >= 0.6:
-        recommendations.append("⚠️ Contact your doctor or visit urgent care today")
-    elif urgency_score >= 0.4:
-        recommendations.append("📞 Schedule an appointment with your doctor within the next few days")
-    else:
-        recommendations.append("💡 Consider monitoring symptoms and contact healthcare provider if they worsen")
-    if predictions:
-        top_condition = predictions[0]
-        specialist = getattr(top_condition, "specialist_recommended", None)
-        if specialist and specialist != "general_practitioner":
-            recommendations.append(f"🏥 Consider consulting a {specialist.replace('_', ' ')}")
-    recommendations.extend([
-        "💊 Keep track of your symptoms and any medications you're taking",
-        "🌡️ Monitor your temperature and vital signs",
-        "💧 Stay hydrated and get adequate rest",
-        "⚠️ This is not a replacement for professional medical advice"
-    ])
-    return recommendations
-
-import uuid
-import asyncio
-import logging
-
-router = APIRouter(prefix="/ml", tags=["machine learning"])
-logger = logging.getLogger(__name__)
-
 
 @router.post("/symptom-checker/start", response_model=SymptomCheckerResult)
 async def start_symptom_checker(
@@ -104,7 +135,7 @@ async def start_symptom_checker(
     try:
         # Get ML model
         ml_model = get_symptom_checker_model()
-        
+
         # Check if model is trained
         if ml_model.condition_classifier is None:
             # Try to load existing model
@@ -114,23 +145,23 @@ async def start_symptom_checker(
                     MLModel.model_name == "symptom_checker",
                     MLModel.is_active == True
                 ).order_by(MLModel.created_at.desc()).first()
-                
+
                 if latest_model:
                     ml_model.load_model(latest_model.file_path)
                 else:
-                    # Train a new model
-                    logger.info("No trained model found. Training new model...")
-                    training_metrics = ml_model.train(num_samples=5000)  # Smaller sample for faster training
-                    
+                    # Train a new model using the CSV data
+                    logger.info("No trained model found. Training new model from CSV data...")
+                    training_metrics = ml_model.train(real_data_path="data/symptom_data.csv")
+
                     # Save the model
                     model_path = ml_model.save_model()
-                    
+
                     # Save model info to database
                     model_info = MLModel(
                         model_name="symptom_checker",
                         version="1.0.0",
                         file_path=model_path,
-                        training_data_size=5000,
+                        training_data_size=0,  # Will be updated with actual size
                         features_used=ml_model.feature_columns,
                         accuracy=training_metrics.get("condition_accuracy"),
                         precision=training_metrics.get("condition_precision"),
@@ -139,28 +170,28 @@ async def start_symptom_checker(
                         cross_validation_score=training_metrics.get("condition_cv_score"),
                         is_active=True
                     )
-                    
+
                     db.add(model_info)
                     db.commit()
-                    
+
                     logger.info(f"Model trained successfully. Accuracy: {training_metrics.get('condition_accuracy', 0):.3f}")
-                    
+
             except Exception as e:
                 logger.error(f"Error loading/training model: {str(e)}")
                 raise HTTPException(
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                     detail="ML model is not available. Please try again later."
                 )
-        
+
         # Generate session ID
         session_id = f"symptom_{uuid.uuid4().hex[:16]}"
-        
+
         # Make prediction
         prediction_result = ml_model.predict(
             symptoms=symptom_data.initial_symptoms,
             patient_info=symptom_data.patient_info
         )
-        
+
         # Store session in database
         session = SymptomChecker(
             session_id=session_id,
@@ -171,10 +202,10 @@ async def start_symptom_checker(
             urgency_score=prediction_result["urgency_score"],
             recommendations=_generate_recommendations(prediction_result)
         )
-        
+
         db.add(session)
         db.commit()
-        
+
         # Build response
         result = SymptomCheckerResult(
             session_id=session_id,
@@ -184,9 +215,9 @@ async def start_symptom_checker(
             follow_up_questions=prediction_result.get("follow_up_questions", []),
             confidence_score=prediction_result["confidence_score"]
         )
-        
+
         return result
-        
+
     except Exception as e:
         logger.error(f"Error in symptom checker: {str(e)}")
         raise HTTPException(
@@ -207,38 +238,38 @@ async def continue_symptom_checker(
         SymptomChecker.session_id == session_data.session_id,
         SymptomChecker.user_id == current_user.id
     ).first()
-    
+
     if not session:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Session not found"
         )
-    
+
     # Update session with follow-up responses
     if not session.follow_up_responses:
         session.follow_up_responses = []
-    
+
     session.follow_up_responses.extend([r.dict() for r in session_data.follow_up_responses])
-    
+
     # Re-run prediction with additional information
     ml_model = get_symptom_checker_model()
-    
+
     # Convert stored symptoms back to SymptomInput format
     from app.schemas.ml_models import SymptomInput, PatientInfo
     symptoms = [SymptomInput(**s) for s in session.initial_symptoms]
     patient_info = PatientInfo(**session.additional_info) if session.additional_info else None
-    
+
     # Make refined prediction
     prediction_result = ml_model.predict(symptoms=symptoms, patient_info=patient_info)
-    
+
     # Update session
     session.predicted_conditions = [p.dict() for p in prediction_result["predictions"]]
     session.urgency_score = prediction_result["urgency_score"]
     session.recommendations = _generate_recommendations(prediction_result)
     session.completed_at = datetime.utcnow()
-    
+
     db.commit()
-    
+
     # Build response
     result = SymptomCheckerResult(
         session_id=session.session_id,
@@ -248,7 +279,7 @@ async def continue_symptom_checker(
         follow_up_questions=[],  # No more questions after follow-up
         confidence_score=prediction_result["confidence_score"]
     )
-    
+
     return result
 
 
@@ -264,29 +295,29 @@ async def submit_feedback(
         SymptomChecker.session_id == feedback.session_id,
         SymptomChecker.user_id == current_user.id
     ).first()
-    
+
     if not session:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Session not found"
         )
-    
+
     # Update session with feedback
     session.user_feedback = {
         "was_helpful": feedback.was_helpful,
         "comments": feedback.comments,
         "submitted_at": datetime.utcnow().isoformat()
     }
-    
+
     if feedback.actual_diagnosis:
         session.actual_diagnosis = feedback.actual_diagnosis
         session.was_accurate = any(
             pred["condition_name"].lower() in feedback.actual_diagnosis.lower()
             for pred in session.predicted_conditions or []
         )
-    
+
     db.commit()
-    
+
     return {"message": "Feedback submitted successfully"}
 
 
@@ -301,7 +332,7 @@ async def get_symptom_checker_history(
     sessions = db.query(SymptomChecker).filter(
         SymptomChecker.user_id == current_user.id
     ).order_by(SymptomChecker.created_at.desc()).offset(skip).limit(limit).all()
-    
+
     history = []
     for session in sessions:
         history.append({
@@ -313,7 +344,7 @@ async def get_symptom_checker_history(
             "urgency_score": session.urgency_score,
             "was_helpful": session.user_feedback.get("was_helpful") if session.user_feedback else None
         })
-    
+
     return history
 
 
@@ -324,7 +355,7 @@ async def list_models(
 ):
     """List available ML models"""
     models = db.query(MLModel).order_by(MLModel.created_at.desc()).all()
-    
+
     model_info = []
     for model in models:
         model_info.append(MLModelInfo(
@@ -334,7 +365,7 @@ async def list_models(
             last_trained=model.created_at,
             is_active=model.is_active
         ))
-    
+
     return model_info
 
 
@@ -350,31 +381,34 @@ async def train_model(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only administrators can train models"
         )
-    
+
     try:
         # Start training in background (in production, use Celery or similar)
         job_id = f"training_{uuid.uuid4().hex[:12]}"
-        
+
         # For now, train synchronously (in production, make this async)
         ml_model = get_symptom_checker_model()
-        training_metrics = ml_model.train(num_samples=10000)
         
+        # Use the specified data path or default to symptom_data.csv
+        data_path = training_request.training_data_path or "data/symptom_data.csv"
+        training_metrics = ml_model.train(real_data_path=data_path)
+
         # Save model
         version = datetime.now().strftime("%Y%m%d_%H%M%S")
         model_path = ml_model.save_model(version)
-        
+
         # Deactivate old models
         db.query(MLModel).filter(
             MLModel.model_name == training_request.model_name,
             MLModel.is_active == True
         ).update({"is_active": False})
-        
+
         # Save new model info
         model_info = MLModel(
             model_name=training_request.model_name,
             version=version,
             file_path=model_path,
-            training_data_size=10000,
+            training_data_size=0,  # Will be updated with actual size
             features_used=ml_model.feature_columns,
             hyperparameters=training_request.hyperparameters,
             accuracy=training_metrics.get("condition_accuracy"),
@@ -384,17 +418,17 @@ async def train_model(
             cross_validation_score=training_metrics.get("condition_cv_score"),
             is_active=True
         )
-        
+
         db.add(model_info)
         db.commit()
-        
+
         return {
             "job_id": job_id,
             "status": "completed",
             "model_name": training_request.model_name,
             "metrics": training_metrics
         }
-        
+
     except Exception as e:
         logger.error(f"Error training model: {str(e)}")
         raise HTTPException(
@@ -406,10 +440,10 @@ async def train_model(
 def _generate_recommendations(prediction_result: dict) -> List[str]:
     """Generate recommendations based on predictions"""
     recommendations = []
-    
+
     urgency_score = prediction_result.get("urgency_score", 0)
     predictions = prediction_result.get("predictions", [])
-    
+
     if urgency_score >= 0.8:
         recommendations.append("🚨 Seek immediate emergency medical attention")
     elif urgency_score >= 0.6:
@@ -418,15 +452,15 @@ def _generate_recommendations(prediction_result: dict) -> List[str]:
         recommendations.append("📞 Schedule an appointment with your doctor within the next few days")
     else:
         recommendations.append("💡 Consider monitoring symptoms and contact healthcare provider if they worsen")
-    
+
     # Add specific recommendations based on top predictions
     if predictions:
         top_condition = predictions[0]
         specialist = top_condition.specialist_recommended
-        
+
         if specialist and specialist != "general_practitioner":
             recommendations.append(f"🏥 Consider consulting a {specialist.replace('_', ' ')}")
-    
+
     # General health recommendations
     recommendations.extend([
         "💊 Keep track of your symptoms and any medications you're taking",
@@ -434,5 +468,5 @@ def _generate_recommendations(prediction_result: dict) -> List[str]:
         "💧 Stay hydrated and get adequate rest",
         "⚠️ This is not a replacement for professional medical advice"
     ])
-    
+
     return recommendations
