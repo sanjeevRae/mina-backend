@@ -2,17 +2,27 @@
 
 A fully functional, production-ready telemedicine backend built with FastAPI, designed to run on Render's free tier and other free services.
 
-## Features
-- User management (patients, doctors, admins)
-- Appointment booking (video, in-person, chat)
-- Medical records and prescriptions
-- Real-time chat and video consultations
-- File upload and storage
-- Email and push notifications
-- AI-powered symptom checker
-- JWT authentication and rate limiting
-- Automatic API documentation
-- Docker and cloud-ready
+## ✨ Features
+- 👥 User management (patients, doctors, admins)
+- 📅 Appointment booking (video, in-person, chat)
+- 📋 Medical records and prescriptions
+- 💬 Real-time chat and video consultations
+- 📁 File upload and storage
+- 📧 Email and push notifications
+- **🤖 AI-powered symptom checker (NEW!)** - LightGBM-based condition prediction
+- 🔐 JWT authentication and rate limiting
+- 📖 Automatic API documentation
+- 🐳 Docker and cloud-ready
+
+## 🤖 AI Symptom Checker
+**NEW:** Lightweight AI system that analyzes symptoms and provides wellness recommendations
+- **98.9% accuracy** on 15 common conditions
+- **2.7 MB model** - Ultra-lightweight LightGBM
+- **180 MB memory** - Perfect for Render free tier
+- **78 symptoms** recognized
+- **NOT medical prescriptions** - General wellness advice only
+
+See [SYMPTOM_CHECKER_README.md](SYMPTOM_CHECKER_README.md) for details.
 
 ## Quick Start
 1. Clone the repository

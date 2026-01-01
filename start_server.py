@@ -32,6 +32,15 @@ if os.path.exists(app_dir):
 else:
     print(f"App folder MISSING: {app_dir}")
 
+# Check if symptom checker model exists
+symptom_model_dir = os.path.join(project_root, "models", "symptom_checker")
+if os.path.exists(symptom_model_dir):
+    print(f"\n✅ Symptom checker model found: {symptom_model_dir}")
+    model_files = os.listdir(symptom_model_dir)
+    print(f"   Model files: {model_files}")
+else:
+    print(f"\n⚠️  Symptom checker model not found. Train it with: python train_symptom_model.py")
+
 print("=== End Directory Contents ===\n")
 
 # Verify imports work

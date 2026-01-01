@@ -18,6 +18,7 @@ from app.routers import appointments
 from app.routers import medical
 from app.routers import communication
 from app.routers import websocket
+from app.routers import symptom_checker
 
 # Configure logging
 logging.basicConfig(
@@ -1321,6 +1322,7 @@ app.include_router(appointments.router, prefix="/api/v1")
 app.include_router(medical.router, prefix="/api/v1")
 app.include_router(communication.router, prefix="/api/v1")
 app.include_router(websocket.router, prefix="/api/v1")
+app.include_router(symptom_checker.router, prefix="/api/v1")
 
 # Serve static files (uploaded files)
 if Path("./uploads").exists():

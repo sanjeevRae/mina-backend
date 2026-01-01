@@ -19,7 +19,11 @@ bcrypt==4.1.1
 # Redis for caching (lightweight)
 redis==5.0.1
 
-# ML functionality removed for simplicity
+# ML for symptom checker (lightweight, memory-optimized)
+lightgbm==4.1.0
+scikit-learn>=1.3.0
+numpy>=1.24.0
+joblib>=1.3.0
 
 # File Handling & Storage (only essential)
 python-magic==0.4.27
@@ -42,6 +46,9 @@ python-dateutil==2.8.2
 
 # System monitoring for health checks
 psutil==5.9.0
+
+# NOTE: Use pip install --no-cache-dir -r requirements.txt for deployment
+# This reduces memory usage during installation on Render free tier
 
 # REMOVED HEAVY DEPENDENCIES:
 # - google-auth, google-auth-oauthlib, google-auth-httplib2 (Firebase - too heavy)
