@@ -5,13 +5,13 @@ import magic
 from pathlib import Path
 from datetime import datetime
 import logging
+import cloudinary
+import cloudinary.uploader
+import cloudinary.api
 
 from app.config import settings
 
 logger = logging.getLogger(__name__)
-
-# Cloudinary removed for free tier - using local storage only
-# All cloudinary imports and configurations removed to save memory
 
 
 class FileStorageService:
@@ -22,6 +22,20 @@ class FileStorageService:
         self.allowed_extensions = settings.ALLOWED_EXTENSIONS
         self.local_storage_path = Path("./uploads")
         self.local_storage_path.mkdir(exist_ok=True)
+        
+        # Configure Cloudinary if credentials are available
+        if settings.CLOUDINARY_CLOUD_NAME and settings.CLOUDINARY_API_KEY and settings.CLOUDINARY_API_SECRET:
+            cloudinary.config(
+                cloud_name=settings.CLOUDINARY_CLOUD_NAME,
+                api_key=settings.CLOUDINARY_API_KEY,
+                api_secret=settings.CLOUDINARY_API_SECRET,
+                secure=settings.CLOUDINARY_SECURE
+            )
+            self.cloudinary_enabled = True
+            logger.info("Cloudinary configured successfully")
+        else:
+            self.cloudinary_enabled = False
+            logger.warning("Cloudinary not configured - using local storage only")
     
     def validate_file(self, file_content: bytes, filename: str) -> Dict[str, Any]:
         """Validate file size, type, and content"""
@@ -71,19 +85,27 @@ class FileStorageService:
         folder: str = "medical_files",
         user_id: Optional[int] = None
     ) -> Dict[str, Any]:
-        """Upload file to local storage only (optimized for free tier)"""
+        """Upload file to Cloudinary or local storage with smart fallback"""
         # Validate file
         validation = self.validate_file(file_content, filename)
         if not validation["valid"]:
             return {"success": False, "error": validation["error"]}
 
         try:
-            # FREE TIER: Store everything locally to save memory
             file_size = len(file_content)
+            file_extension = filename.lower().split('.')[-1] if '.' in filename else ''
 
-            if file_size < 100 * 1024:  # < 100KB - store as Base64 in database
+            # Small files (< 100KB) - store as Base64 in database
+            if file_size < 100 * 1024:
                 return await self._store_as_base64(file_content, filename, validation["mime_type"])
-            else:  # All other files - store locally
+            
+            # Large files - use Cloudinary if enabled, otherwise local storage
+            if self.cloudinary_enabled and file_extension in ['jpg', 'jpeg', 'png', 'pdf']:
+                result = await self._upload_to_cloudinary(file_content, filename, folder, user_id)
+                # If Cloudinary fails, result will already fallback to local storage
+                return result
+            else:
+                # Store locally for non-image/pdf files or if Cloudinary is disabled
                 return await self._store_locally(file_content, filename, folder, user_id)
 
         except Exception as e:

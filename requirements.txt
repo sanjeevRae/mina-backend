@@ -28,6 +28,7 @@ joblib>=1.3.0
 # File Handling & Storage (only essential)
 python-magic==0.4.27
 Pillow==10.1.0
+cloudinary==1.36.0
 
 # WebSocket for video calls (minimal)
 websockets==11.0.3
@@ -56,6 +57,5 @@ psutil==5.9.0
 # - alembic (database migrations - not needed for free tier)
 # - psycopg2-binary, asyncpg (PostgreSQL drivers - using SQLite)
 # - aioredis (using basic redis)
-# - cloudinary (file storage - using local storage)
 # - pytest, pytest-asyncio (testing - not needed in production)
 # - email-validator (validation handled by pydantic)
