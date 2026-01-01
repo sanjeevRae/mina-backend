@@ -33,8 +33,12 @@ async def lifespan(app: FastAPI):
     # Startup - MINIMAL INITIALIZATION
     logger.info("Starting Mina Backend (Memory Optimized)...")
 
-    # Initialize database only when needed
-    # init_db()  # Remove immediate DB init to save memory
+    # Initialize database tables on startup
+    try:
+        init_db()
+        logger.info("Database initialized successfully")
+    except Exception as e:
+        logger.error(f"Database initialization error: {e}")
 
     # Create directories minimally
     Path("./uploads").mkdir(exist_ok=True)

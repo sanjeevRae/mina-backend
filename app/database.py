@@ -49,12 +49,22 @@ async def get_redis():
     """Redis dependency"""
     global redis_client
     if redis_client is None:
-        redis_client = redis.from_url(
-            settings.REDIS_URL,
-            password=settings.REDIS_PASSWORD,
-            db=settings.REDIS_DB,
-            decode_responses=True
-        )
+        try:
+            redis_client = redis.from_url(
+                settings.REDIS_URL,
+                password=settings.REDIS_PASSWORD,
+                db=settings.REDIS_DB,
+                decode_responses=True,
+                socket_connect_timeout=2,
+                socket_timeout=2
+            )
+            # Test connection
+            await redis_client.ping()
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.warning(f"Redis connection failed: {e}. Continuing without Redis.")
+            redis_client = None
     return redis_client
 
 

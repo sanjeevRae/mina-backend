@@ -6,10 +6,13 @@ from fastapi import HTTPException, status, Depends
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 import redis.asyncio as redis
 from sqlalchemy.orm import Session
+import logging
 
 from app.config import settings
 from app.database import get_db
 from app.models.user import User
+
+logger = logging.getLogger(__name__)
 
 # Password hashing
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -34,9 +37,9 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 
 def get_password_hash(password: str) -> str:
     """Hash a password"""
-    # Ensure password is not longer than 72 bytes for bcrypt
+    # Truncate password to 72 bytes for bcrypt if needed
     if len(password.encode('utf-8')) > 72:
-        raise ValueError("Password cannot be longer than 72 bytes. Please use a shorter password.")
+        password = password.encode('utf-8')[:72].decode('utf-8', errors='ignore')
     return pwd_context.hash(password)
 
 
@@ -65,14 +68,17 @@ def create_refresh_token(data: dict) -> str:
 async def verify_token(token: str, token_type: str = "access") -> Dict[str, Any]:
     """Verify a JWT token"""
     try:
-        # Check if token is blacklisted
-        redis_conn = await get_redis()
-        is_blacklisted = await redis_conn.get(f"blacklist:{token}")
-        if is_blacklisted:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Token has been revoked"
-            )
+        # Check if token is blacklisted (skip if Redis unavailable)
+        try:
+            redis_conn = await get_redis()
+            is_blacklisted = await redis_conn.get(f"blacklist:{token}")
+            if is_blacklisted:
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Token has been revoked"
+                )
+        except Exception as redis_error:
+            logger.warning(f"Redis unavailable, skipping blacklist check: {redis_error}")
         
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
         
@@ -101,8 +107,11 @@ async def verify_token(token: str, token_type: str = "access") -> Dict[str, Any]
 
 async def blacklist_token(token: str, expiry: int):
     """Add token to blacklist"""
-    redis_conn = await get_redis()
-    await redis_conn.setex(f"blacklist:{token}", expiry, "true")
+    try:
+        redis_conn = await get_redis()
+        await redis_conn.setex(f"blacklist:{token}", expiry, "true")
+    except Exception as e:
+        logger.warning(f"Could not blacklist token (Redis unavailable): {e}")
 
 
 async def get_current_user(
