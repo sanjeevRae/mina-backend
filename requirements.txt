@@ -7,8 +7,9 @@ python-multipart==0.0.6
 pydantic[email]==2.5.0
 pydantic-settings==2.1.0
 
-# Database (SQLite only for free tier)
+# Database (PostgreSQL for data persistence)
 sqlalchemy==2.0.23
+psycopg2-binary==2.9.7
 
 # Authentication & Security (minimal)
 python-jose[cryptography]==3.3.0

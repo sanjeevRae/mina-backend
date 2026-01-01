@@ -13,8 +13,11 @@ services:
         generateValue: true
       - key: DEBUG
         value: "false"
+      # Railway PostgreSQL - Free tier database for data persistence
+      # Get your Railway database URL from https://railway.app
+      # Format: postgresql://postgres:password@containers-us-west-1.railway.app:5432/railway
       - key: DATABASE_URL
-        value: "sqlite:///./telemedicine_dev.db"
+        value: "${DATABASE_URL}"
       - key: REDIS_URL
         value: "redis://red-d58fpluuk2gs73djegfg:PY5FJC6eNkCY6Vjiuj7dJ9jgUd4DjbyN@singapore-keyvalue.render.com:6379"
       - key: ENABLE_VIDEO_CALLS

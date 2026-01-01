@@ -19,13 +19,9 @@ def test_imports():
         from app.main import app
         print("✅ app.main imports successfully")
 
-        # Test all services
-        from app.services import ml_service, file_service, notification_service, websocket_service
+        # Test all services (ML removed)
+        from app.services import file_service, notification_service, websocket_service
         print("✅ All services import successfully")
-
-        # Test ML service (should not load model on import)
-        from app.services.ml_service import get_symptom_checker_model
-        print("✅ ML service imports successfully")
 
         return True
     except ImportError as e:

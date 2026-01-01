@@ -13,9 +13,7 @@ sys.path.append(str(Path(__file__).parent))
 
 from app.database import init_db, SessionLocal
 from app.models.user import User, UserRole
-from app.models.ml_models import SymptomCondition
 from app.auth import get_password_hash
-from app.services.ml_service import SyntheticDataGenerator
 
 
 def create_sample_users():
@@ -142,9 +140,6 @@ def main():
     
     # Create sample users
     create_sample_users()
-    
-    # Populate medical knowledge base
-    populate_medical_knowledge()
     
     print("\n🎉 Database setup completed!")
     print("\n📋 Sample Credentials:")
