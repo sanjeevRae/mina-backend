@@ -238,7 +238,7 @@ class SymptomCheckerService:
                 [sys.executable, "data/symptom_dataset.py"],
                 capture_output=True,
                 text=True,
-                timeout=120
+                timeout=60
             )
             if result.returncode != 0:
                 logger.error(f"Dataset generation failed: {result.stderr}")
@@ -250,7 +250,7 @@ class SymptomCheckerService:
                 [sys.executable, "train_symptom_model.py"],
                 capture_output=True,
                 text=True,
-                timeout=300
+                timeout=120
             )
             if result.returncode != 0:
                 logger.error(f"Model training failed: {result.stderr}")

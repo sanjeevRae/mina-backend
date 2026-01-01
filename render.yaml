@@ -4,8 +4,9 @@ services:
     name: telemedicine-backend
     env: python
     runtime: python-3.11.4
-    buildCommand: pip install --upgrade pip && pip install --no-cache-dir -r requirements.txt && python -u setup_symptom_checker.py
+    buildCommand: pip install --upgrade pip && pip install --no-cache-dir -r requirements.txt
     startCommand: python start_server.py
+    # Model will auto-train on first API request (1-2 min)
     # Removed retrain_model.py from startup to save memory on free tier
     # Models will be trained on-demand when first requested
     envVars:

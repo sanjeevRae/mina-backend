@@ -221,8 +221,8 @@ CONDITION_PATTERNS = {
     }
 }
 
-def generate_training_data(num_samples: int = 5000) -> List[Dict]:
-    """Generate synthetic training data"""
+def generate_training_data(num_samples: int = 1000) -> List[Dict]:
+    """Generate synthetic training data (reduced for faster training)"""
     data = []
     
     for _ in range(num_samples):
@@ -266,7 +266,7 @@ def generate_training_data(num_samples: int = 5000) -> List[Dict]:
 
 def save_dataset(filename: str = "symptom_condition_data.json"):
     """Generate and save dataset"""
-    data = generate_training_data(5000)
+    data = generate_training_data(1000)  # Reduced for faster generation
     
     with open(filename, 'w') as f:
         json.dump({

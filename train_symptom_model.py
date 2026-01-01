@@ -74,34 +74,33 @@ class SymptomCheckerTrainer:
         train_data = lgb.Dataset(X_train, label=y_train)
         test_data = lgb.Dataset(X_test, label=y_test, reference=train_data)
         
-        # LightGBM parameters (memory-optimized)
+        # LightGBM parameters (optimized for speed on Render free tier)
         params = {
             'objective': 'multiclass',
             'num_class': len(self.label_encoder.classes_),
             'metric': 'multi_logloss',
             'boosting_type': 'gbdt',
-            'num_leaves': 31,
-            'learning_rate': 0.05,
-            'feature_fraction': 0.8,
-            'bagging_fraction': 0.8,
+            'num_leaves': 15,  # Reduced for speed
+            'learning_rate': 0.1,  # Increased for faster convergence
+            'feature_fraction': 0.9,
+            'bagging_fraction': 0.9,
             'bagging_freq': 5,
             'verbose': -1,
-            'max_depth': 5,
-            'min_data_in_leaf': 20,
-            'lambda_l1': 0.1,
-            'lambda_l2': 0.1
+            'max_depth': 4,  # Reduced for speed
+            'min_data_in_leaf': 10,
+            'num_threads': 1  # Single thread to avoid memory issues
         }
         
-        # Train model
-        logger.info("Training LightGBM model...")
+        # Train model (faster settings for Render)
+        logger.info("Training LightGBM model (fast mode for deployment)...")
         self.model = lgb.train(
             params,
             train_data,
-            num_boost_round=200,
+            num_boost_round=50,  # Reduced from 200 for speed
             valid_sets=[test_data],
             callbacks=[
-                lgb.early_stopping(stopping_rounds=20),
-                lgb.log_evaluation(period=50)
+                lgb.early_stopping(stopping_rounds=10),
+                lgb.log_evaluation(period=10)
             ]
         )
         
