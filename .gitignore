@@ -1,5 +1,5 @@
-# Ignore model files - Downloaded from GitHub Releases on-demand
-models/
+# Pre-trained models are now committed to git for deployment
+# models/
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

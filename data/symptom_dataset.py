@@ -276,7 +276,7 @@ def save_dataset(filename: str = "symptom_condition_data.json"):
             "condition_info": CONDITION_PATTERNS
         }, f, indent=2)
     
-    print(f"✅ Dataset saved: {filename}")
+    print(f"Dataset saved: {filename}")
     print(f"   - Samples: {len(data)}")
     print(f"   - Symptoms: {len(SYMPTOMS)}")
     print(f"   - Conditions: {len(CONDITION_PATTERNS)}")
