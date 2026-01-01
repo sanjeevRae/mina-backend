@@ -17,16 +17,12 @@ services:
         value: "sqlite:///./telemedicine_dev.db"
       - key: REDIS_URL
         value: "redis://red-d58fpluuk2gs73djegfg:PY5FJC6eNkCY6Vjiuj7dJ9jgUd4DjbyN@singapore-keyvalue.render.com:6379"
-      - key: ENABLE_ML_FEATURES
-        value: "true"
       - key: ENABLE_VIDEO_CALLS
         value: "true"
       - key: ENABLE_PUSH_NOTIFICATIONS
         value: "false"
       - key: ENABLE_EMAIL_NOTIFICATIONS
         value: "true"
-      - key: MODEL_DOWNLOAD_URL
-        value: "https://github.com/sanjeevRae/mina-ml-model/releases/download/v1.0/symptom_model_package.zip"
     # Memory optimization settings
     plan: free
     autoDeploy: false  # Manual deploys to control memory usage

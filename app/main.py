@@ -16,7 +16,6 @@ from app.database import init_db, engine, Base
 from app.routers import auth
 from app.routers import appointments
 from app.routers import medical
-from app.routers import ml_symptom_checker
 from app.routers import communication
 from app.routers import websocket
 
@@ -114,71 +113,14 @@ async def process_scheduled_notifications():
             await asyncio.sleep(300)  # Wait 5 minutes on error
 
 
-async def schedule_model_retraining():
-    """Schedule periodic model retraining"""
-    import asyncio
-    from datetime import datetime, timedelta
-    from app.services.ml_service import get_symptom_checker_model
-    from app.database import get_db
-    from app.models.ml_models import MLModel
-    
-    while True:
-        try:
-            # Wait 7 days
-            await asyncio.sleep(7 * 24 * 60 * 60)
-            
-            logger.info("Starting scheduled model retraining...")
-            
-            # Check if we have enough new feedback data
-            db = next(get_db())
-            recent_feedback_count = db.query(MLModel).filter(
-                MLModel.created_at > datetime.utcnow() - timedelta(days=7)
-            ).count()
-            
-            if recent_feedback_count > 100:  # Only retrain if we have enough new data
-                ml_model = get_symptom_checker_model()
-                training_metrics = ml_model.train(num_samples=15000)
-                
-                # Save new model
-                version = datetime.now().strftime("%Y%m%d_%H%M%S")
-                model_path = ml_model.save_model(version)
-                
-                # Deactivate old models
-                db.query(MLModel).filter(
-                    MLModel.model_name == "symptom_checker",
-                    MLModel.is_active == True
-                ).update({"is_active": False})
-                
-                # Save new model
-                model_info = MLModel(
-                    model_name="symptom_checker",
-                    version=version,
-                    file_path=model_path,
-                    training_data_size=15000,
-                    accuracy=training_metrics.get("condition_accuracy"),
-                    precision=training_metrics.get("condition_precision"),
-                    recall=training_metrics.get("condition_recall"),
-                    f1_score=training_metrics.get("condition_f1"),
-                    cross_validation_score=training_metrics.get("condition_cv_score"),
-                    is_active=True
-                )
-                
-                db.add(model_info)
-                db.commit()
-                
-                logger.info(f"Model retrained successfully. New accuracy: {training_metrics.get('condition_accuracy', 0):.3f}")
-            else:
-                logger.info("Not enough new data for retraining, skipping this cycle")
-                
-        except Exception as e:
-            logger.error(f"Error in model retraining: {str(e)}")
+
 
 
 # Create FastAPI app
 app = FastAPI(
     title="Mina Backend",
     version=settings.VERSION,
-    description="A comprehensive Mina backend built with FastAPI, featuring ML-powered symptom checking, video consultations, and complete medical record management - all running on free tier services.",
+    description="A comprehensive Mina backend built with FastAPI, featuring video consultations and complete medical record management - all running on free tier services.",
     lifespan=lifespan,
     docs_url="/docs" if settings.DEBUG else None,
     redoc_url="/redoc" if settings.DEBUG else None
@@ -1373,7 +1315,6 @@ async def redis_rate_limit_details():
 app.include_router(auth.router, prefix="/api/v1")
 app.include_router(appointments.router, prefix="/api/v1")
 app.include_router(medical.router, prefix="/api/v1")
-app.include_router(ml_symptom_checker.router, prefix="/api/v1")
 app.include_router(communication.router, prefix="/api/v1")
 app.include_router(websocket.router, prefix="/api/v1")
 
@@ -1430,7 +1371,6 @@ async def root():
             "Appointment Management",
             "Medical Records",
             "Prescriptions",
-            "AI Symptom Checker", 
             "Real-time Chat",
             "Video Consultations",
             "File Upload & Storage",

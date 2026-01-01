@@ -71,16 +71,9 @@ class Settings(BaseSettings):
         return None
     
     # Feature Flags
-    ENABLE_ML_FEATURES: bool = True
     ENABLE_VIDEO_CALLS: bool = True
     ENABLE_PUSH_NOTIFICATIONS: bool = False
     ENABLE_EMAIL_NOTIFICATIONS: bool = False
-    
-    # ML Model Configuration
-    MODEL_PATH: str = "./models/"
-    SYNTHETIC_DATA_PATH: str = "./data/synthetic/"
-    MEDICAL_DATA_PATH: str = "./data/medical/"
-    MODEL_DOWNLOAD_URL: Optional[str] = None
     
     # Rate Limiting
     RATE_LIMIT_REQUESTS: int = 100
