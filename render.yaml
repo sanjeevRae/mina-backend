@@ -4,7 +4,7 @@ services:
     name: telemedicine-backend
     env: python
     runtime: python-3.11.4
-    buildCommand: pip install --upgrade pip && pip install -r requirements.txt
+    buildCommand: pip install --upgrade pip && pip install --no-cache-dir -r requirements.txt && python setup_symptom_checker.py
     startCommand: python start_server.py
     # Removed retrain_model.py from startup to save memory on free tier
     # Models will be trained on-demand when first requested

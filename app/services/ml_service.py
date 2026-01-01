@@ -48,7 +48,11 @@ class SymptomCheckerService:
             # Load LightGBM model
             model_file = model_path / "lightgbm_model.txt"
             if not model_file.exists():
-                raise FileNotFoundError(f"Model file not found: {model_file}")
+                logger.warning(f"Model file not found: {model_file}. Auto-training model...")
+                self._auto_train_model()
+                # Retry loading after training
+                if not model_file.exists():
+                    raise FileNotFoundError(f"Model file not found after training: {model_file}")
             
             self.model = lgb.Booster(model_file=str(model_file))
             
@@ -218,6 +222,48 @@ class SymptomCheckerService:
                 "Seek medical advice if symptoms persist beyond a week",
                 "Contact healthcare provider if symptoms worsen"
             ]
+    
+    def _auto_train_model(self):
+        """Auto-train model if not found (first deployment)"""
+        import subprocess
+        import sys
+        import os
+        
+        logger.info("🔄 Starting auto-training process...")
+        
+        try:
+            # Generate dataset
+            logger.info("Generating synthetic dataset...")
+            result = subprocess.run(
+                [sys.executable, "data/symptom_dataset.py"],
+                capture_output=True,
+                text=True,
+                timeout=120
+            )
+            if result.returncode != 0:
+                logger.error(f"Dataset generation failed: {result.stderr}")
+                raise RuntimeError("Failed to generate dataset")
+            
+            # Train model
+            logger.info("Training LightGBM model...")
+            result = subprocess.run(
+                [sys.executable, "train_symptom_model.py"],
+                capture_output=True,
+                text=True,
+                timeout=300
+            )
+            if result.returncode != 0:
+                logger.error(f"Model training failed: {result.stderr}")
+                raise RuntimeError("Failed to train model")
+            
+            logger.info("✅ Auto-training completed successfully")
+            
+        except subprocess.TimeoutExpired:
+            logger.error("Auto-training timed out")
+            raise RuntimeError("Model training timed out")
+        except Exception as e:
+            logger.error(f"Auto-training failed: {e}")
+            raise
 
 
 # Global service instance
