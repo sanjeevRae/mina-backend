@@ -6,71 +6,106 @@ import json
 import random
 from typing import List, Dict
 
-# Comprehensive symptoms (120+ symptoms based on medical literature)
+# Enterprise-level comprehensive symptoms (200+ symptoms)
 SYMPTOMS = [
-    # General symptoms
+    # General/Constitutional
     "fever", "fatigue", "weakness", "chills", "night_sweats", "weight_loss", 
     "weight_gain", "loss_of_appetite", "nausea", "vomiting", "dizziness",
-    "malaise", "lethargy", "excessive_hunger", "excessive_thirst",
+    "malaise", "lethargy", "excessive_hunger", "excessive_thirst", "dehydration",
+    "unexplained_weight_loss", "poor_appetite", "general_weakness", "body_aches",
     
-    # Respiratory
+    # Respiratory System
     "cough", "shortness_of_breath", "chest_pain", "wheezing", "sore_throat",
     "runny_nose", "congestion", "sneezing", "difficulty_breathing", "hoarseness", 
     "persistent_cough", "coughing_blood", "rapid_breathing", "shallow_breathing",
+    "chest_congestion", "mucus_production", "tight_chest", "gasping", "choking_sensation",
+    "productive_cough", "dry_cough", "hemoptysis", "dyspnea", "stridor",
     
-    # Digestive
+    # Cardiovascular System
+    "palpitations", "irregular_heartbeat", "chest_tightness", "leg_swelling",
+    "rapid_heartbeat", "slow_heartbeat", "cold_hands", "cold_feet", "blue_lips",
+    "shortness_of_breath_lying_down", "ankle_swelling", "cyanosis", "edema",
+    "claudication", "varicose_veins", "chest_pressure", "radiating_arm_pain",
+    "jaw_pain", "syncope", "presyncope",
+    
+    # Digestive/Gastrointestinal
     "abdominal_pain", "diarrhea", "constipation", "bloating", "heartburn",
     "difficulty_swallowing", "blood_in_stool", "black_stool", "indigestion",
     "gas", "acid_reflux", "loss_of_taste", "bitter_taste", "stomach_cramps",
+    "dysphagia", "hematemesis", "melena", "hematochezia", "tenesmus",
+    "early_satiety", "postprandial_fullness", "belching", "regurgitation",
+    "fecal_incontinence", "rectal_bleeding", "mucus_in_stool", "greasy_stool",
     
-    # Musculoskeletal
+    # Musculoskeletal System
     "joint_pain", "muscle_pain", "back_pain", "neck_pain", "stiffness",
     "swelling", "numbness", "tingling", "muscle_weakness", "joint_stiffness",
-    "bone_pain", "muscle_cramps", "reduced_mobility", "limping",
+    "bone_pain", "muscle_cramps", "reduced_mobility", "limping", "arthralgia",
+    "myalgia", "joint_swelling", "joint_redness", "joint_warmth", "decreased_range_of_motion",
+    "morning_stiffness", "gait_disturbance", "muscle_spasms", "tendon_pain",
     
-    # Neurological
+    # Neurological System
     "headache", "migraine", "confusion", "memory_loss", "seizures",
     "loss_of_consciousness", "tremors", "coordination_problems", "vertigo",
     "lightheadedness", "fainting", "speech_difficulty", "vision_problems",
-    "sensitivity_to_sound", "brain_fog", "difficulty_concentrating",
+    "sensitivity_to_sound", "brain_fog", "difficulty_concentrating", "photophobia",
+    "phonophobia", "paresthesia", "hyperreflexia", "hyporeflexia", "ataxia",
+    "dysarthria", "aphasia", "cognitive_decline", "disorientation", "altered_mental_status",
+    "loss_of_balance", "nystagmus", "diplopia", "scotoma", "aura",
     
-    # Cardiovascular
-    "palpitations", "irregular_heartbeat", "chest_tightness", "leg_swelling",
-    "rapid_heartbeat", "slow_heartbeat", "cold_hands", "cold_feet",
-    "blue_lips", "shortness_of_breath_lying_down", "ankle_swelling",
-    
-    # Skin
+    # Dermatological/Skin
     "rash", "itching", "skin_redness", "hives", "dry_skin", "bruising",
-    "pale_skin", "yellowing_skin", "peeling_skin", "skin_lesions",
-    "blisters", "skin_discoloration", "excessive_sweating", "cold_skin",
+    "pale_skin", "yellowing_skin", "peeling_skin", "skin_lesions", "blisters",
+    "skin_discoloration", "excessive_sweating", "cold_skin", "warm_skin",
+    "purpura", "petechiae", "ecchymosis", "urticaria", "erythema", "macules",
+    "papules", "nodules", "plaques", "scaling", "crusting", "ulcers",
+    "hyperpigmentation", "hypopigmentation", "jaundice", "pallor",
     
-    # ENT (Ear, Nose, Throat)
+    # ENT (Ear, Nose, Throat, Eyes)
     "ear_pain", "hearing_loss", "ringing_in_ears", "vision_changes",
     "eye_pain", "sensitivity_to_light", "double_vision", "blurred_vision",
     "eye_redness", "watery_eyes", "nasal_discharge", "loss_of_smell",
+    "tinnitus", "otorrhea", "vertigo", "epistaxis", "postnasal_drip",
+    "sinus_pressure", "facial_pain", "decreased_vision", "eye_discharge",
+    "photopsia", "floaters", "halos", "night_blindness", "periorbital_swelling",
     
-    # Urinary/Reproductive
+    # Urinary/Renal System
     "frequent_urination", "painful_urination", "blood_in_urine", "dark_urine",
     "cloudy_urine", "urinary_urgency", "difficulty_urinating", "pelvic_pain",
-    "decreased_urine_output", "strong_smelling_urine",
+    "decreased_urine_output", "strong_smelling_urine", "polyuria", "oliguria",
+    "anuria", "nocturia", "urinary_retention", "dysuria", "hematuria",
+    "proteinuria", "foamy_urine", "urinary_incontinence", "hesitancy",
     
-    # Mental Health
+    # Reproductive/Gynecological
+    "vaginal_discharge", "menstrual_irregularities", "pelvic_discomfort",
+    "painful_intercourse", "vaginal_bleeding", "breast_pain", "breast_lump",
+    "testicular_pain", "erectile_dysfunction", "decreased_libido",
+    
+    # Endocrine/Metabolic
+    "heat_intolerance", "cold_intolerance", "increased_sweating", "hair_loss",
+    "brittle_nails", "slow_wound_healing", "polydipsia", "polyphagia",
+    "unexplained_hunger", "glucose_intolerance", "frequent_infections",
+    "delayed_growth", "early_puberty", "delayed_puberty", "thyroid_swelling",
+    
+    # Psychiatric/Mental Health
     "anxiety", "depression", "insomnia", "irritability", "mood_swings",
     "panic_attacks", "restlessness", "loss_of_interest", "social_withdrawal",
-    "excessive_worry", "difficulty_sleeping", "nightmares",
+    "excessive_worry", "difficulty_sleeping", "nightmares", "hallucinations",
+    "delusions", "paranoia", "suicidal_thoughts", "racing_thoughts",
+    "emotional_lability", "anhedonia", "hypersomnia", "psychomotor_agitation",
     
-    # Respiratory Advanced
-    "chest_congestion", "mucus_production", "tight_chest", "gasping",
+    # Hematological
+    "easy_bruising", "unexplained_bleeding", "prolonged_bleeding", "nosebleeds",
+    "bleeding_gums", "heavy_menstrual_bleeding", "blood_clots", "pallor",
     
-    # Endocrine
-    "heat_intolerance", "cold_intolerance", "increased_sweating",
-    "hair_loss", "brittle_nails", "slow_wound_healing",
+    # Lymphatic/Immune
+    "swollen_lymph_nodes", "recurrent_infections", "slow_healing", "fever_of_unknown_origin",
+    "lymphadenopathy", "splenomegaly", "hepatomegaly",
     
-    # Other
-    "sweating", "dehydration", "thirst", "swollen_lymph_nodes", 
-    "mouth_sores", "bleeding_gums", "bad_breath", "red_eyes",
-    "sensitive_teeth", "gum_swelling", "unexplained_bleeding",
-    "easy_bruising", "loss_of_coordination", "balance_problems"
+    # Other Symptoms
+    "thirst", "bad_breath", "mouth_sores", "dry_mouth", "excessive_saliva",
+    "red_eyes", "sensitive_teeth", "gum_swelling", "loss_of_coordination",
+    "balance_problems", "falls", "unsteady_gait", "muscle_atrophy",
+    "flushing", "chills_without_fever", "rigors", "diaphoresis"
 ]
 
 # Medical conditions with their typical symptom patterns
@@ -602,11 +637,462 @@ CONDITION_PATTERNS = {
             "Hospital admission required",
             "Vaccination available for prevention"
         ]
+    },
+    "Appendicitis": {
+        "symptoms": ["abdominal_pain", "nausea", "vomiting", "fever", "loss_of_appetite", "constipation"],
+        "severity": "emergency",
+        "recommendations": [
+            "Seek immediate emergency care",
+            "Surgical removal usually required",
+            "Do not eat or drink",
+            "Time-sensitive condition",
+            "Can lead to peritonitis if untreated"
+        ]
+    },
+    "Glaucoma": {
+        "symptoms": ["eye_pain", "blurred_vision", "halos", "headache", "nausea", "red_eyes"],
+        "severity": "serious",
+        "recommendations": [
+            "Ophthalmologist consultation urgent",
+            "Eye pressure lowering medications",
+            "Regular monitoring essential",
+            "May require laser or surgery",
+            "Can cause permanent blindness"
+        ]
+    },
+    "Cataracts": {
+        "symptoms": ["blurred_vision", "decreased_vision", "sensitivity_to_light", "faded_colors", "halos", "double_vision"],
+        "severity": "moderate",
+        "recommendations": [
+            "Ophthalmology consultation",
+            "Surgical removal when vision affected",
+            "Update eyeglass prescription",
+            "Manage lighting at home",
+            "Curable with surgery"
+        ]
+    },
+    "Macular Degeneration": {
+        "symptoms": ["blurred_vision", "vision_changes", "difficulty_reading", "decreased_central_vision", "distorted_vision"],
+        "severity": "serious",
+        "recommendations": [
+            "Retina specialist consultation",
+            "Anti-VEGF injections may help",
+            "Nutritional supplements",
+            "Low vision aids",
+            "Regular monitoring required"
+        ]
+    },
+    "Retinal Detachment": {
+        "symptoms": ["floaters", "flashes_of_light", "vision_loss", "shadow_in_vision", "curtain_over_vision"],
+        "severity": "emergency",
+        "recommendations": [
+            "SEEK EMERGENCY CARE IMMEDIATELY",
+            "Surgical repair required urgently",
+            "Permanent blindness if untreated",
+            "Do not delay treatment",
+            "Retina specialist needed"
+        ]
+    },
+    "Otitis Media": {
+        "symptoms": ["ear_pain", "fever", "hearing_loss", "fluid_drainage", "irritability", "difficulty_sleeping"],
+        "severity": "moderate",
+        "recommendations": [
+            "Consult healthcare provider",
+            "Antibiotics if bacterial",
+            "Pain management",
+            "Warm compress to ear",
+            "Follow-up to ensure resolution"
+        ]
+    },
+    "Vertigo (BPPV)": {
+        "symptoms": ["spinning_sensation", "dizziness", "nausea", "vomiting", "balance_problems", "nystagmus"],
+        "severity": "moderate",
+        "recommendations": [
+            "Epley maneuver may help",
+            "Vestibular rehabilitation",
+            "Avoid sudden head movements",
+            "ENT consultation",
+            "Usually resolves with treatment"
+        ]
+    },
+    "Meniere Disease": {
+        "symptoms": ["vertigo", "hearing_loss", "tinnitus", "ear_fullness", "nausea", "balance_problems"],
+        "severity": "moderate",
+        "recommendations": [
+            "ENT specialist consultation",
+            "Low-sodium diet",
+            "Diuretic medications",
+            "Avoid triggers",
+            "Vestibular rehabilitation"
+        ]
+    },
+    "Temporomandibular Joint Disorder": {
+        "symptoms": ["jaw_pain", "clicking_jaw", "difficulty_chewing", "ear_pain", "headache", "facial_pain"],
+        "severity": "mild",
+        "recommendations": [
+            "Apply ice or heat",
+            "Soft food diet",
+            "Jaw exercises",
+            "Stress management",
+            "Dental consultation if severe"
+        ]
+    },
+    "Peripheral Neuropathy": {
+        "symptoms": ["numbness", "tingling", "burning_sensation", "pain", "weakness", "loss_of_coordination"],
+        "severity": "moderate",
+        "recommendations": [
+            "Neurologist consultation",
+            "Identify and treat underlying cause",
+            "Pain management",
+            "Physical therapy",
+            "Foot care if diabetic"
+        ]
+    },
+    "Restless Legs Syndrome": {
+        "symptoms": ["uncomfortable_leg_sensations", "urge_to_move_legs", "worse_at_night", "difficulty_sleeping"],
+        "severity": "mild",
+        "recommendations": [
+            "Iron supplementation if deficient",
+            "Avoid caffeine",
+            "Regular exercise",
+            "Leg massage",
+            "Medications if severe"
+        ]
+    },
+    "Carpal Tunnel Syndrome": {
+        "symptoms": ["hand_numbness", "tingling", "weakness", "pain", "worse_at_night", "difficulty_gripping"],
+        "severity": "moderate",
+        "recommendations": [
+            "Wrist splinting at night",
+            "Ergonomic modifications",
+            "Anti-inflammatory medications",
+            "Corticosteroid injections",
+            "Surgery if conservative treatment fails"
+        ]
+    },
+    "Sciatica": {
+        "symptoms": ["leg_pain", "lower_back_pain", "numbness", "tingling", "weakness", "shooting_pain"],
+        "severity": "moderate",
+        "recommendations": [
+            "Physical therapy",
+            "Pain management",
+            "Core strengthening",
+            "Avoid prolonged sitting",
+            "Surgery if severe or progressive"
+        ]
+    },
+    "Herniated Disc": {
+        "symptoms": ["back_pain", "leg_pain", "numbness", "weakness", "radiating_pain", "difficulty_walking"],
+        "severity": "moderate",
+        "recommendations": [
+            "Physical therapy",
+            "Pain management",
+            "Avoid heavy lifting",
+            "Core strengthening",
+            "Surgery if conservative treatment fails"
+        ]
+    },
+    "Spinal Stenosis": {
+        "symptoms": ["back_pain", "leg_pain", "numbness", "weakness", "cramping", "difficulty_walking"],
+        "severity": "moderate",
+        "recommendations": [
+            "Physical therapy",
+            "Pain management",
+            "Epidural injections",
+            "Walking assistance devices",
+            "Surgery if severe symptoms"
+        ]
+    },
+    "Polymyalgia Rheumatica": {
+        "symptoms": ["shoulder_pain", "hip_pain", "morning_stiffness", "fatigue", "fever", "weight_loss"],
+        "severity": "moderate",
+        "recommendations": [
+            "Rheumatologist consultation",
+            "Corticosteroid treatment",
+            "Regular monitoring",
+            "Gradual steroid taper",
+            "Monitor for temporal arteritis"
+        ]
+    },
+    "Giant Cell Arteritis": {
+        "symptoms": ["severe_headache", "scalp_tenderness", "jaw_pain", "vision_problems", "fever", "fatigue"],
+        "severity": "emergency",
+        "recommendations": [
+            "SEEK IMMEDIATE MEDICAL CARE",
+            "Risk of permanent blindness",
+            "High-dose corticosteroids",
+            "Temporal artery biopsy",
+            "Rheumatology consultation urgent"
+        ]
+    },
+    "Polymyositis": {
+        "symptoms": ["muscle_weakness", "fatigue", "difficulty_swallowing", "shortness_of_breath", "joint_pain"],
+        "severity": "serious",
+        "recommendations": [
+            "Rheumatologist consultation",
+            "Immunosuppressive medications",
+            "Physical therapy",
+            "Regular monitoring",
+            "Cardiac and pulmonary evaluation"
+        ]
+    },
+    "Scleroderma": {
+        "symptoms": ["skin_thickening", "raynauds_phenomenon", "difficulty_swallowing", "heartburn", "joint_pain"],
+        "severity": "serious",
+        "recommendations": [
+            "Rheumatologist consultation",
+            "Immunosuppressive treatment",
+            "Skin care",
+            "Organ monitoring",
+            "Multidisciplinary care"
+        ]
+    },
+    "Sarcoidosis": {
+        "symptoms": ["cough", "shortness_of_breath", "chest_pain", "fatigue", "weight_loss", "skin_lesions"],
+        "severity": "moderate",
+        "recommendations": [
+            "Pulmonologist consultation",
+            "Corticosteroids if symptomatic",
+            "Regular monitoring",
+            "Chest imaging",
+            "Multiorgan evaluation"
+        ]
+    },
+    "Addison Disease": {
+        "symptoms": ["fatigue", "weight_loss", "low_blood_pressure", "hyperpigmentation", "salt_craving", "nausea"],
+        "severity": "serious",
+        "recommendations": [
+            "Endocrinologist consultation",
+            "Hormone replacement therapy",
+            "Emergency medication card",
+            "Regular monitoring",
+            "Stress dose adjustments"
+        ]
+    },
+    "Cushing Syndrome": {
+        "symptoms": ["weight_gain", "moon_face", "buffalo_hump", "high_blood_pressure", "diabetes", "easy_bruising"],
+        "severity": "serious",
+        "recommendations": [
+            "Endocrinologist consultation",
+            "Identify underlying cause",
+            "Surgical or medical treatment",
+            "Manage complications",
+            "Regular monitoring"
+        ]
+    },
+    "Acromegaly": {
+        "symptoms": ["enlarged_hands", "enlarged_feet", "facial_changes", "headache", "vision_problems", "joint_pain"],
+        "severity": "serious",
+        "recommendations": [
+            "Endocrinologist consultation",
+            "MRI of pituitary",
+            "Surgical treatment",
+            "Medication management",
+            "Screen for complications"
+        ]
+    },
+    "Pheochromocytoma": {
+        "symptoms": ["severe_headache", "rapid_heartbeat", "sweating", "high_blood_pressure", "anxiety", "tremors"],
+        "severity": "serious",
+        "recommendations": [
+            "Emergency evaluation if crisis",
+            "Endocrinology consultation",
+            "Imaging studies",
+            "Surgical removal",
+            "Blood pressure management"
+        ]
+    },
+    "Polycystic Ovary Syndrome": {
+        "symptoms": ["irregular_periods", "acne", "weight_gain", "excess_hair", "hair_loss", "difficulty_getting_pregnant"],
+        "severity": "moderate",
+        "recommendations": [
+            "Gynecologist or endocrinologist",
+            "Lifestyle modifications",
+            "Hormonal contraceptives",
+            "Fertility treatment if needed",
+            "Monitor for diabetes"
+        ]
+    },
+    "Endometriosis": {
+        "symptoms": ["pelvic_pain", "painful_periods", "painful_intercourse", "infertility", "heavy_bleeding"],
+        "severity": "moderate",
+        "recommendations": [
+            "Gynecologist consultation",
+            "Pain management",
+            "Hormonal treatments",
+            "Surgical treatment if severe",
+            "Fertility preservation options"
+        ]
+    },
+    "Benign Prostatic Hyperplasia": {
+        "symptoms": ["difficulty_urinating", "weak_stream", "frequent_urination", "nocturia", "urgency", "incomplete_emptying"],
+        "severity": "moderate",
+        "recommendations": [
+            "Urologist consultation",
+            "Medications to improve flow",
+            "Lifestyle modifications",
+            "Surgical options if severe",
+            "Regular monitoring"
+        ]
+    },
+    "Interstitial Cystitis": {
+        "symptoms": ["pelvic_pain", "urinary_urgency", "frequent_urination", "painful_urination", "pain_during_intercourse"],
+        "severity": "moderate",
+        "recommendations": [
+            "Urologist consultation",
+            "Dietary modifications",
+            "Bladder instillations",
+            "Pain management",
+            "Physical therapy"
+        ]
+    },
+    "Diverticulitis": {
+        "symptoms": ["abdominal_pain", "fever", "nausea", "constipation", "diarrhea", "bloating"],
+        "severity": "moderate",
+        "recommendations": [
+            "Clear liquid diet initially",
+            "Antibiotics if prescribed",
+            "Gradual diet advancement",
+            "High-fiber diet after recovery",
+            "Surgery if complications"
+        ]
+    },
+    "Hemorrhoids": {
+        "symptoms": ["rectal_bleeding", "anal_pain", "itching", "swelling", "discomfort"],
+        "severity": "mild",
+        "recommendations": [
+            "High-fiber diet",
+            "Adequate hydration",
+            "Sitz baths",
+            "Topical treatments",
+            "Procedures or surgery if severe"
+        ]
+    },
+    "Gastroesophageal Reflux Disease": {
+        "symptoms": ["heartburn", "acid_reflux", "chest_pain", "difficulty_swallowing", "chronic_cough", "hoarseness"],
+        "severity": "moderate",
+        "recommendations": [
+            "Lifestyle modifications",
+            "Elevate head of bed",
+            "Avoid trigger foods",
+            "Proton pump inhibitors",
+            "Endoscopy if alarm symptoms"
+        ]
+    },
+    "Barrett Esophagus": {
+        "symptoms": ["heartburn", "difficulty_swallowing", "chest_pain", "chronic_reflux"],
+        "severity": "serious",
+        "recommendations": [
+            "Gastroenterologist consultation",
+            "Proton pump inhibitors",
+            "Regular endoscopic surveillance",
+            "Treatment if dysplasia found",
+            "Risk factor for esophageal cancer"
+        ]
+    },
+    "Lactose Intolerance": {
+        "symptoms": ["diarrhea", "bloating", "gas", "abdominal_cramps", "nausea"],
+        "severity": "mild",
+        "recommendations": [
+            "Avoid dairy products",
+            "Lactase supplements",
+            "Calcium-fortified alternatives",
+            "Gradual reintroduction trial",
+            "Nutritional counseling"
+        ]
+    },
+    "Food Allergy": {
+        "symptoms": ["hives", "itching", "swelling", "difficulty_breathing", "nausea", "vomiting", "diarrhea"],
+        "severity": "serious",
+        "recommendations": [
+            "Allergist consultation",
+            "Strict allergen avoidance",
+            "Carry epinephrine auto-injector",
+            "Read food labels carefully",
+            "Medical alert bracelet"
+        ]
+    },
+    "Anaphylaxis": {
+        "symptoms": ["difficulty_breathing", "swelling", "hives", "rapid_pulse", "dizziness", "loss_of_consciousness"],
+        "severity": "emergency",
+        "recommendations": [
+            "CALL 911 IMMEDIATELY",
+            "Use epinephrine immediately",
+            "Lie flat with legs elevated",
+            "Life-threatening emergency",
+            "Hospital monitoring required"
+        ]
+    },
+    "Chronic Kidney Disease": {
+        "symptoms": ["fatigue", "swelling", "decreased_appetite", "nausea", "shortness_of_breath", "confusion"],
+        "severity": "serious",
+        "recommendations": [
+            "Nephrologist consultation",
+            "Blood pressure control",
+            "Dietary modifications",
+            "Regular monitoring",
+            "Dialysis or transplant if advanced"
+        ]
+    },
+    "Nephrotic Syndrome": {
+        "symptoms": ["severe_swelling", "foamy_urine", "weight_gain", "fatigue", "loss_of_appetite"],
+        "severity": "serious",
+        "recommendations": [
+            "Nephrologist consultation urgent",
+            "Kidney biopsy may be needed",
+            "Immunosuppressive treatment",
+            "Diuretics for swelling",
+            "Monitor for complications"
+        ]
+    },
+    "Acute Kidney Injury": {
+        "symptoms": ["decreased_urine_output", "swelling", "fatigue", "confusion", "nausea", "chest_pain"],
+        "severity": "emergency",
+        "recommendations": [
+            "Seek immediate medical care",
+            "Identify and treat cause",
+            "Hospital admission usually required",
+            "May need dialysis",
+            "Can be reversible if treated promptly"
+        ]
+    },
+    "Rhabdomyolysis": {
+        "symptoms": ["muscle_pain", "weakness", "dark_urine", "fatigue", "nausea", "confusion"],
+        "severity": "emergency",
+        "recommendations": [
+            "SEEK EMERGENCY CARE IMMEDIATELY",
+            "IV fluids essential",
+            "Can cause kidney failure",
+            "Hospital admission required",
+            "Avoid muscle damage triggers"
+        ]
+    },
+    "Deep Vein Thrombosis": {
+        "symptoms": ["leg_swelling", "leg_pain", "warmth", "redness", "prominent_veins"],
+        "severity": "serious",
+        "recommendations": [
+            "Seek immediate medical evaluation",
+            "Ultrasound imaging",
+            "Anticoagulation therapy",
+            "Risk of pulmonary embolism",
+            "Compression stockings"
+        ]
+    },
+    "Pulmonary Embolism": {
+        "symptoms": ["sudden_shortness_of_breath", "chest_pain", "coughing_blood", "rapid_heartbeat", "lightheadedness"],
+        "severity": "emergency",
+        "recommendations": [
+            "CALL 911 IMMEDIATELY",
+            "Life-threatening condition",
+            "Anticoagulation required",
+            "Hospital admission essential",
+            "May need thrombolysis"
+        ]
     }
 }
 
-def generate_training_data(num_samples: int = 2500) -> List[Dict]:
-    """Generate synthetic training data (optimized for comprehensive coverage)"""
+def generate_training_data(num_samples: int = 5000) -> List[Dict]:
+    """Generate synthetic training data (enterprise-level with comprehensive coverage)"""
     data = []
     
     for _ in range(num_samples):
@@ -650,7 +1136,7 @@ def generate_training_data(num_samples: int = 2500) -> List[Dict]:
 
 def save_dataset(filename: str = "symptom_condition_data.json"):
     """Generate and save dataset"""
-    data = generate_training_data(2500)  # Comprehensive dataset
+    data = generate_training_data(5000)  # Enterprise dataset
     
     with open(filename, 'w') as f:
         json.dump({
