@@ -22,25 +22,41 @@ if settings.database_url.startswith("sqlite"):
 else:
     # PostgreSQL/Supabase configuration
     # Optimized for Supabase free tier with SSL support
-    connect_args = {}
+    connect_args = {"sslmode": "require"}
     
-    # Add SSL requirement for Supabase (and most cloud PostgreSQL)
-    if "supabase" in settings.database_url or "amazonaws" in settings.database_url:
-        connect_args["sslmode"] = "require"
-    
-    # Force IPv4 to avoid IPv6 unreachable errors
-    # This is critical for networks that don't support IPv6
+    # Force IPv4 connection by modifying psycopg2 connection parameters
+    # This prevents "Network is unreachable" errors on IPv6-only DNS responses
     db_url = settings.database_url
-    if "supabase" in db_url and "@db." in db_url:
-        # Replace db.xxx.supabase.co with aws-0-xxx.pooler.supabase.com (IPv4)
-        # Or add connect_args to force IPv4 resolution
+    
+    # Extract host from connection string and force IPv4 resolution
+    if "supabase" in db_url:
         import socket
-        original_getaddrinfo = socket.getaddrinfo
+        import re
         
-        def getaddrinfo_ipv4_only(host, port, family=0, type=0, proto=0, flags=0):
-            return original_getaddrinfo(host, port, socket.AF_INET, type, proto, flags)
-        
-        socket.getaddrinfo = getaddrinfo_ipv4_only
+        # Parse the hostname from connection string
+        match = re.search(r'@([^:]+):', db_url)
+        if match:
+            hostname = match.group(1)
+            try:
+                # Try to get IPv4 address explicitly
+                ipv4_addr = None
+                for addr_info in socket.getaddrinfo(hostname, None, socket.AF_INET):
+                    ipv4_addr = addr_info[4][0]
+                    break
+                
+                # If we got an IPv4 address, replace hostname in connection string
+                if ipv4_addr:
+                    db_url = db_url.replace(f'@{hostname}:', f'@{ipv4_addr}:')
+                    # Add host parameter to force hostname for SSL verification
+                    connect_args["host"] = ipv4_addr
+                    connect_args["hostaddr"] = ipv4_addr
+                    import logging
+                    logging.info(f"Supabase connection using IPv4: {ipv4_addr}")
+            except socket.gaierror:
+                # If IPv4 resolution fails, try to continue with original
+                import logging
+                logging.warning(f"Could not resolve IPv4 for {hostname}, using original URL")
+                pass
     
     engine = create_engine(
         db_url,
