@@ -28,8 +28,22 @@ else:
     if "supabase" in settings.database_url or "amazonaws" in settings.database_url:
         connect_args["sslmode"] = "require"
     
+    # Force IPv4 to avoid IPv6 unreachable errors
+    # This is critical for networks that don't support IPv6
+    db_url = settings.database_url
+    if "supabase" in db_url and "@db." in db_url:
+        # Replace db.xxx.supabase.co with aws-0-xxx.pooler.supabase.com (IPv4)
+        # Or add connect_args to force IPv4 resolution
+        import socket
+        original_getaddrinfo = socket.getaddrinfo
+        
+        def getaddrinfo_ipv4_only(host, port, family=0, type=0, proto=0, flags=0):
+            return original_getaddrinfo(host, port, socket.AF_INET, type, proto, flags)
+        
+        socket.getaddrinfo = getaddrinfo_ipv4_only
+    
     engine = create_engine(
-        settings.database_url,
+        db_url,
         echo=settings.DEBUG,
         pool_size=5,  # Reduced for free tier memory optimization
         max_overflow=10,  # Reduced for free tier
