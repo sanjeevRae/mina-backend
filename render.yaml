@@ -14,9 +14,13 @@ services:
         generateValue: true
       - key: DEBUG
         value: "false"
-      # Railway PostgreSQL - Free tier database for data persistence
-      # Get your Railway database URL from https://railway.app
-      # Format: postgresql://postgres:password@containers-us-west-1.railway.app:5432/railway
+      # Supabase PostgreSQL - Free tier database for persistent data storage
+      # Get your Supabase database URL from https://supabase.com
+      # Format: postgresql://postgres.xxx:password@aws-0-us-east-1.pooler.supabase.com:5432/postgres
+      # See SUPABASE_SETUP.md for detailed instructions
+      - key: SUPABASE_DB_URL
+        value: "${SUPABASE_DB_URL}"
+      # Alternative: Use DATABASE_URL (both work)
       - key: DATABASE_URL
         value: "${DATABASE_URL}"
       - key: REDIS_URL

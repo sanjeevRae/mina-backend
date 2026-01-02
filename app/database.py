@@ -20,14 +20,24 @@ if settings.database_url.startswith("sqlite"):
         echo=settings.DEBUG
     )
 else:
-    # PostgreSQL configuration
+    # PostgreSQL/Supabase configuration
+    # Optimized for Supabase free tier with SSL support
+    connect_args = {}
+    
+    # Add SSL requirement for Supabase (and most cloud PostgreSQL)
+    if "supabase" in settings.database_url or "amazonaws" in settings.database_url:
+        connect_args["sslmode"] = "require"
+    
     engine = create_engine(
         settings.database_url,
         echo=settings.DEBUG,
-        pool_size=10,
-        max_overflow=20,
-        pool_recycle=300,
-        pool_pre_ping=True
+        pool_size=5,  # Reduced for free tier memory optimization
+        max_overflow=10,  # Reduced for free tier
+        pool_recycle=300,  # Recycle connections every 5 minutes
+        pool_pre_ping=True,  # Verify connections before using
+        connect_args=connect_args,
+        pool_timeout=10,  # Wait up to 10 seconds for connection
+        execution_options={"isolation_level": "AUTOCOMMIT"}  # Better for serverless
     )
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)

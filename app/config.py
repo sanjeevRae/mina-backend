@@ -25,6 +25,11 @@ class Settings(BaseSettings):
     DATABASE_URL: Optional[str] = None
     SQLITE_URL: str = "sqlite:///./mina.db"
     
+    # Supabase Configuration
+    SUPABASE_DB_URL: Optional[str] = None  # Supabase PostgreSQL connection string
+    SUPABASE_PROJECT_URL: Optional[str] = None  # Supabase project URL (optional)
+    SUPABASE_ANON_KEY: Optional[str] = None  # Supabase anon key (optional)
+    
     # JWT Configuration
     SECRET_KEY: str
     ALGORITHM: str = "HS256"
@@ -91,7 +96,8 @@ class Settings(BaseSettings):
     @property
     def database_url(self) -> str:
         """Return the appropriate database URL based on environment"""
-        return self.DATABASE_URL or self.SQLITE_URL
+        # Priority: SUPABASE_DB_URL > DATABASE_URL > SQLITE_URL
+        return self.SUPABASE_DB_URL or self.DATABASE_URL or self.SQLITE_URL
     
     @property
     def is_development(self) -> bool:

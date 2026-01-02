@@ -7,9 +7,9 @@ python-multipart==0.0.6
 pydantic[email]==2.5.0
 pydantic-settings==2.1.0
 
-# Database (PostgreSQL for data persistence)
+# Database (PostgreSQL for data persistence - Supabase optimized)
 sqlalchemy==2.0.23
-psycopg2-binary==2.9.7
+psycopg2-binary==2.9.7  # PostgreSQL driver with SSL support for Supabase
 
 # Authentication & Security (minimal)
 python-jose[cryptography]==3.3.0
