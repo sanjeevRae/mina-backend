@@ -20,6 +20,7 @@ class Settings(BaseSettings):
     HOST: str = "0.0.0.0"
     PORT: int = 8000
     ENVIRONMENT: str = "development"
+    BASE_URL: Optional[str] = None  # Your Render deployment URL
     
     # Database Configuration
     DATABASE_URL: Optional[str] = None

@@ -8,6 +8,7 @@ import logging
 from contextlib import asynccontextmanager
 import sys
 import os
+import httpx
 
 from pathlib import Path
 
@@ -65,8 +66,39 @@ async def start_essential_background_tasks():
     """Start ONLY essential background tasks for Render free tier"""
     # NO heavy background tasks on startup - they consume too much memory
     # Only start critical tasks that are lightweight
+    
+    # Start keep-alive task to prevent Render free tier from sleeping
+    asyncio.create_task(keep_alive_ping())
 
     logger.info("Essential background tasks started (memory optimized)")
+
+
+async def keep_alive_ping():
+    """Keep the service alive by pinging itself every 10 minutes"""
+    await asyncio.sleep(60)  # Wait 1 minute after startup
+    
+    # Determine the URL to ping
+    base_url = settings.BASE_URL
+    if not base_url:
+        # Try to get from environment or use localhost (fallback)
+        base_url = os.getenv("RENDER_EXTERNAL_URL") or f"http://{settings.HOST}:{settings.PORT}"
+    
+    logger.info(f"Keep-alive mechanism started, pinging: {base_url}/health every 10 minutes")
+    
+    while True:
+        try:
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                # Ping the health endpoint
+                response = await client.get(f"{base_url}/health")
+                if response.status_code == 200:
+                    logger.info("✓ Keep-alive ping successful - service staying active")
+                else:
+                    logger.warning(f"Keep-alive ping returned status {response.status_code}")
+        except Exception as e:
+            logger.error(f"Keep-alive ping failed: {e}")
+        
+        # Wait 14 minutes before next ping (840 seconds)
+        await asyncio.sleep(840)
 
 
 async def process_scheduled_notifications():
