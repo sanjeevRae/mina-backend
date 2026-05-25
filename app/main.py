@@ -8,6 +8,7 @@ import logging
 from contextlib import asynccontextmanager
 import sys
 import os
+import socket
 import httpx
 
 from pathlib import Path
@@ -21,6 +22,7 @@ from app.routers import communication
 from app.routers import websocket
 from app.routers import symptom_checker
 from app.routers import documents
+from app.routers import dashboard
 
 # Configure logging
 logging.basicConfig(
@@ -160,14 +162,29 @@ app = FastAPI(
     version=settings.VERSION,
     description="A comprehensive Mina backend built with FastAPI, featuring video consultations and complete medical record management - all running on free tier services.",
     lifespan=lifespan,
-    docs_url="/docs" if settings.DEBUG else None,
-    redoc_url="/redoc" if settings.DEBUG else None
+    docs_url="/docs" if settings.docs_enabled else None,
+    redoc_url="/redoc" if settings.docs_enabled else None
 )
+
+# Local development hosts should work even when DEBUG is false so the app can
+# still be started with production-like settings from a shared .env file.
+local_origins = [
+    "http://localhost",
+    "http://127.0.0.1",
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "http://localhost:8000",
+    "http://127.0.0.1:8000",
+    "http://localhost:8001",
+    "http://127.0.0.1:8001",
+]
 
 # CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"] if settings.DEBUG else ["https://yourdomain.com"],
+    allow_origins=["*"] if settings.DEBUG else ["https://yourdomain.com", *local_origins],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -177,7 +194,7 @@ app.add_middleware(
 if not settings.DEBUG:
     app.add_middleware(
         TrustedHostMiddleware,
-        allowed_hosts=["yourdomain.com", "*.render.com"]
+        allowed_hosts=["yourdomain.com", "*.render.com", "localhost", "127.0.0.1", "[::1]", "testserver"]
     )
     
 # ======== SQLITE DATABASE ENDPOINTS ========
@@ -1357,6 +1374,7 @@ app.include_router(communication.router, prefix="/api/v1")
 app.include_router(websocket.router, prefix="/api/v1")
 app.include_router(symptom_checker.router, prefix="/api/v1")
 app.include_router(documents.router, prefix="/api/v1")
+app.include_router(dashboard.router, prefix="/api/v1")
 
 # Serve static files (uploaded files)
 if Path("./uploads").exists():
@@ -1403,7 +1421,7 @@ async def root():
     return {
         "message": "Mina Backend API",
         "version": settings.VERSION,
-        "docs": "/docs" if settings.DEBUG else "Documentation disabled in production",
+        "docs": "/docs" if settings.docs_enabled else "Documentation disabled in production",
         "health": "/health",
         "websocket": "/api/v1/ws/{token}",
         "features": [
@@ -1454,6 +1472,8 @@ async def rate_limiting_middleware(request: Request, call_next):
         # Get client IP
         client_ip = request.client.host
         redis_client = await get_redis()
+        if redis_client is None:
+            return await call_next(request)
         
         # Rate limit key
         key = f"rate_limit:{client_ip}"
@@ -1481,12 +1501,35 @@ async def rate_limiting_middleware(request: Request, call_next):
         return await call_next(request)
 
 
+def resolve_runtime_port(host: str, preferred_port: int) -> int:
+    """Prefer the configured port, but fall back locally if it is busy."""
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        try:
+            sock.bind((host, preferred_port))
+            return preferred_port
+        except OSError:
+            pass
+
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        sock.bind((host, 0))
+        fallback_port = sock.getsockname()[1]
+
+    logger.warning(
+        "Port %s is already in use; starting on %s instead.",
+        preferred_port,
+        fallback_port,
+    )
+    return fallback_port
+
+
 if __name__ == "__main__":
     import uvicorn
+    port = resolve_runtime_port(settings.HOST, settings.PORT)
     uvicorn.run(
         "app.main:app",
         host=settings.HOST,
-        port=settings.PORT,
+        port=port,
         reload=settings.DEBUG,
         log_level="info" if settings.DEBUG else "warning"
     )

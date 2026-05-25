@@ -3,7 +3,7 @@ from pathlib import Path
 from typing import Optional
 
 from pydantic_settings import BaseSettings
-from pydantic import field_validator
+from pydantic import ValidationInfo, field_validator
 
 
 class Settings(BaseSettings):
@@ -16,11 +16,14 @@ class Settings(BaseSettings):
     # App Configuration
     APP_NAME: str = "MINA Backend"
     DEBUG: bool = False
+    ENABLE_DOCS: Optional[bool] = None
     VERSION: str = "1.0.0"
     HOST: str = "0.0.0.0"
     PORT: int = 8000
     ENVIRONMENT: str = "development"
     BASE_URL: Optional[str] = None  # Your Render deployment URL
+    MODEL_PATH: str = "./models"
+    SYNTHETIC_DATA_PATH: str = "./data"
     
     # Database Configuration
     DATABASE_URL: Optional[str] = None
@@ -88,7 +91,22 @@ class Settings(BaseSettings):
     # File Upload Configuration
     MAX_FILE_SIZE: int = 10485760  # 10MB
     ALLOWED_EXTENSIONS: str = "pdf,jpg,jpeg,png,doc,docx"
-    
+
+    @field_validator("DEBUG", "ENABLE_DOCS", mode="before")
+    @classmethod
+    def validate_boolean_flag(cls, v, info: ValidationInfo):
+        if isinstance(v, bool):
+            return v
+        if v is None:
+            return None if info.field_name == "ENABLE_DOCS" else False
+        if isinstance(v, str):
+            normalized = v.strip().lower()
+            if normalized in {"1", "true", "yes", "on", "debug", "development", "dev", "local"}:
+                return True
+            if normalized in {"0", "false", "no", "off", "release", "production", "prod"}:
+                return False
+        return v
+
     @field_validator("ALLOWED_EXTENSIONS")
     @classmethod
     def validate_extensions(cls, v):
@@ -104,6 +122,11 @@ class Settings(BaseSettings):
     def is_development(self) -> bool:
         """Check if running in development mode"""
         return self.DEBUG
+
+    @property
+    def docs_enabled(self) -> bool:
+        """Enable docs explicitly, or fall back to debug mode."""
+        return self.DEBUG if self.ENABLE_DOCS is None else self.ENABLE_DOCS
     
     @property
     def model_directory(self) -> Path:

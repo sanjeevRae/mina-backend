@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta
 from typing import Optional, Union, Any, Dict
+import bcrypt
 from jose import JWTError, jwt
-from passlib.context import CryptContext
 from fastapi import HTTPException, status, Depends
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 import redis.asyncio as redis
@@ -13,9 +13,6 @@ from app.database import get_db
 from app.models.user import User
 
 logger = logging.getLogger(__name__)
-
-# Password hashing
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 # JWT token scheme
 security = HTTPBearer()
@@ -30,17 +27,30 @@ async def get_redis():
     return redis_client
 
 
+def _normalize_password_bytes(password: str) -> bytes:
+    """Normalize passwords to the byte range supported by bcrypt."""
+    password_bytes = password.encode("utf-8")
+    return password_bytes[:72] if len(password_bytes) > 72 else password_bytes
+
+
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """Verify a plain password against its hash"""
-    return pwd_context.verify(plain_password, hashed_password)
+    try:
+        return bcrypt.checkpw(
+            _normalize_password_bytes(plain_password),
+            hashed_password.encode("utf-8"),
+        )
+    except ValueError:
+        logger.warning("Password verification failed because the stored hash is invalid.")
+        return False
 
 
 def get_password_hash(password: str) -> str:
     """Hash a password"""
-    # Truncate password to 72 bytes for bcrypt if needed
-    if len(password.encode('utf-8')) > 72:
-        password = password.encode('utf-8')[:72].decode('utf-8', errors='ignore')
-    return pwd_context.hash(password)
+    return bcrypt.hashpw(
+        _normalize_password_bytes(password),
+        bcrypt.gensalt(),
+    ).decode("utf-8")
 
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:

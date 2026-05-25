@@ -13,6 +13,29 @@ class UserBase(BaseModel):
     role: UserRole = UserRole.PATIENT
 
 
+class PublicUserCreate(BaseModel):
+    email: EmailStr
+    username: str
+    full_name: str
+    phone: Optional[str] = None
+    gender: Optional[str] = None
+    password: str
+    date_of_birth: Optional[datetime] = None
+    address: Optional[str] = None
+    emergency_contact: Optional[str] = None
+    medical_conditions: Optional[List[str]] = []
+    allergies: Optional[List[str]] = []
+    current_medications: Optional[List[str]] = []
+
+    @validator("password")
+    def validate_password(cls, v):
+        if len(v) < 8:
+            raise ValueError("Password must be at least 8 characters long")
+        if len(v.encode('utf-8')) > 72:
+            raise ValueError("Password cannot be longer than 72 bytes.")
+        return v
+
+
 class UserCreate(UserBase):
     password: str
     date_of_birth: Optional[datetime] = None
@@ -86,6 +109,8 @@ class PasswordChange(BaseModel):
     def validate_new_password(cls, v):
         if len(v) < 8:
             raise ValueError("Password must be at least 8 characters long")
+        if len(v.encode('utf-8')) > 72:
+            raise ValueError("Password cannot be longer than 72 bytes.")
         return v
 
 
@@ -101,4 +126,6 @@ class PasswordResetConfirm(BaseModel):
     def validate_new_password(cls, v):
         if len(v) < 8:
             raise ValueError("Password must be at least 8 characters long")
+        if len(v.encode('utf-8')) > 72:
+            raise ValueError("Password cannot be longer than 72 bytes.")
         return v

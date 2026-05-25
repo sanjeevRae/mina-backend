@@ -8,7 +8,7 @@ from app.database import get_db
 from app.auth import create_access_token, create_refresh_token, verify_password, get_password_hash, verify_token, blacklist_token, get_current_user
 from app.models.user import User, UserRole
 from app.schemas.user import (
-    UserCreate, UserResponse, UserLogin, Token, TokenRefresh, 
+    PublicUserCreate, UserCreate, UserResponse, UserLogin, Token, TokenRefresh, 
     PasswordChange, PasswordReset, PasswordResetConfirm, UserUpdate
 )
 from app.config import settings
@@ -18,7 +18,7 @@ security = HTTPBearer()
 
 
 @router.post("/register", response_model=UserResponse)
-async def register(user_data: UserCreate, db: Session = Depends(get_db)):
+async def register(user_data: PublicUserCreate, db: Session = Depends(get_db)):
     """Register a new user"""
     # Check if user already exists
     existing_user = db.query(User).filter(
@@ -44,6 +44,7 @@ async def register(user_data: UserCreate, db: Session = Depends(get_db)):
     
     new_user = User(
         **user_dict,
+        role=UserRole.PATIENT,
         hashed_password=hashed_password,
         is_active=True,
         is_verified=False,

@@ -29,7 +29,9 @@ See [SYMPTOM_CHECKER_README.md](SYMPTOM_CHECKER_README.md) for details.
 2. Set up your environment variables in `.env`
 3. Install dependencies: `pip install -r requirements.txt`
 4. Initialize the database: `python setup_db.py`
-5. Start the server: `uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload`
+5. Start the server: `python start_server.py`
+
+`start_server.py` respects the configured `PORT` value and automatically falls back to an open local port if the preferred one is already in use.
 
 ## Deployment
 See the Render and Docker instructions in this README for deploying to the cloud or running locally with Docker Compose.
