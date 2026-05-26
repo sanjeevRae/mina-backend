@@ -1,12 +1,16 @@
 from datetime import datetime, timedelta
 from typing import List
-from fastapi import APIRouter, Depends, HTTPException, status
+from pathlib import Path
+import logging
+
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
 from fastapi.security import HTTPBearer
 from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.auth import create_access_token, create_refresh_token, verify_password, get_password_hash, verify_token, blacklist_token, get_current_user
 from app.models.user import User, UserRole
+from app.services.file_service import file_storage_service
 from app.schemas.user import (
     PublicUserCreate, UserCreate, UserResponse, UserLogin, Token, TokenRefresh, 
     PasswordChange, PasswordReset, PasswordResetConfirm, UserUpdate
@@ -15,6 +19,7 @@ from app.config import settings
 
 router = APIRouter(prefix="/auth", tags=["authentication"])
 security = HTTPBearer()
+logger = logging.getLogger(__name__)
 
 
 @router.post("/register", response_model=UserResponse)
@@ -165,6 +170,68 @@ async def update_profile(
     db.commit()
     db.refresh(current_user)
     
+    return current_user
+
+
+@router.post("/me/profile-image", response_model=UserResponse)
+async def upload_profile_image(
+    file: UploadFile = File(..., description="Profile image file (JPG, JPEG, PNG)"),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Upload or replace the current user's profile image."""
+    if not file.filename:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Filename is required"
+        )
+
+    file_extension = Path(file.filename).suffix.lower().lstrip(".")
+    if file_extension not in {"jpg", "jpeg", "png"}:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Only JPG, JPEG, and PNG files can be used as profile images"
+        )
+
+    content = await file.read()
+    if len(content) == 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Empty file"
+        )
+
+    result = await file_storage_service.upload_file(
+        file_content=content,
+        filename=file.filename,
+        folder=f"profile_images/{current_user.role.value}",
+        user_id=current_user.id,
+        prefer_cloudinary=True
+    )
+
+    if not result.get("success"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=result.get("error", "Upload failed")
+        )
+
+    previous_profile_image_url = current_user.profile_image_url
+    current_user.profile_image_url = result.get("url")
+    current_user.updated_at = datetime.utcnow()
+    db.commit()
+    db.refresh(current_user)
+
+    if previous_profile_image_url and previous_profile_image_url != current_user.profile_image_url:
+        try:
+            previous_file_info = file_storage_service.get_file_info(previous_profile_image_url)
+            if previous_file_info:
+                await file_storage_service.delete_file(
+                    previous_profile_image_url,
+                    previous_file_info.get("storage_type", "local"),
+                    previous_file_info.get("public_id")
+                )
+        except Exception as exc:
+            logger.warning("Failed to delete previous profile image for user %s: %s", current_user.id, exc)
+
     return current_user
 
 

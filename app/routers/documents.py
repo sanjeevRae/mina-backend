@@ -9,7 +9,7 @@ from typing import Optional
 import logging
 
 from app.database import get_db
-from app.auth import get_current_user, get_current_active_user
+from app.auth import get_current_active_user
 from app.models.user import User
 from app.services.file_service import file_storage_service
 
@@ -32,9 +32,9 @@ async def upload_document(
     Max file size: 10MB
     
     Files are automatically routed to:
-    - Cloudinary: Images and PDFs (if configured)
-    - Local storage: Other files or fallback
-    - Base64 in database: Files < 100KB
+    - Cloudinary: Preferred for supported uploads when configured
+    - Local storage: Fallback when Cloudinary is unavailable or fails
+    - Base64 in database: Reserved for generic small-file flows that do not request Cloudinary
     """
     try:
         # Read file content
@@ -49,7 +49,8 @@ async def upload_document(
             file_content=content,
             filename=file.filename,
             folder=folder,
-            user_id=current_user.id
+            user_id=current_user.id,
+            prefer_cloudinary=True
         )
         
         if not result.get("success"):
@@ -65,6 +66,7 @@ async def upload_document(
                 "filename": result.get("filename"),
                 "url": result.get("url"),
                 "storage_type": result.get("storage_type"),
+                "public_id": result.get("public_id"),
                 "size": result.get("size"),
                 "uploaded_by": current_user.id,
                 "description": description
@@ -103,7 +105,8 @@ async def upload_multiple_documents(
                 file_content=content,
                 filename=file.filename,
                 folder=folder,
-                user_id=current_user.id
+                user_id=current_user.id,
+                prefer_cloudinary=True
             )
             
             if result.get("success"):
@@ -111,6 +114,7 @@ async def upload_multiple_documents(
                     "filename": result.get("filename"),
                     "url": result.get("url"),
                     "storage_type": result.get("storage_type"),
+                    "public_id": result.get("public_id"),
                     "size": result.get("size")
                 })
             else:
@@ -144,8 +148,8 @@ async def get_storage_info(
     return {
         "cloudinary_enabled": file_storage_service.cloudinary_enabled,
         "storage_strategy": {
-            "small_files": "Base64 in database (< 100KB)",
-            "images_and_pdfs": "Cloudinary (if enabled) or local storage",
+            "profile_images_and_documents": "Cloudinary preferred when enabled, with local storage fallback",
+            "small_generic_files": "Base64 in database (< 100KB) when Cloudinary preference is not requested",
             "other_files": "Local storage",
             "fallback": "Local storage if Cloudinary fails"
         },
@@ -182,6 +186,8 @@ async def delete_document(
         else:
             raise HTTPException(status_code=400, detail="Failed to delete file")
     
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Delete error: {str(e)}")
         raise HTTPException(status_code=500, detail="Internal server error during deletion")

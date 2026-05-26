@@ -5,6 +5,7 @@ import magic
 from pathlib import Path
 from datetime import datetime
 import logging
+from urllib.parse import urlparse, unquote
 import cloudinary
 import cloudinary.uploader
 import cloudinary.api
@@ -55,23 +56,42 @@ class FileStorageService:
             }
         
         # Check MIME type
+        mime_type = None
         try:
             mime_type = magic.from_buffer(file_content, mime=True)
-            allowed_mime_types = {
-                'pdf': 'application/pdf',
-                'jpg': 'image/jpeg',
-                'jpeg': 'image/jpeg',
-                'png': 'image/png',
-                'doc': 'application/msword',
-                'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+            strict_mime_types = {
+                'pdf': {'application/pdf'},
+                'jpg': {'image/jpeg'},
+                'jpeg': {'image/jpeg'},
+                'png': {'image/png'}
+            }
+            document_mime_types = {
+                'doc': {
+                    'application/msword',
+                    'application/x-cfb',
+                    'application/octet-stream'
+                },
+                'docx': {
+                    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                    'application/zip',
+                    'application/octet-stream'
+                }
             }
             
-            expected_mime = allowed_mime_types.get(file_extension)
-            if expected_mime and mime_type != expected_mime:
+            expected_mimes = strict_mime_types.get(file_extension)
+            if expected_mimes and mime_type not in expected_mimes:
                 return {
                     "valid": False,
-                    "error": f"File content doesn't match extension. Expected {expected_mime}, got {mime_type}"
+                    "error": f"File content doesn't match extension. Expected one of {sorted(expected_mimes)}, got {mime_type}"
                 }
+
+            document_expected_mimes = document_mime_types.get(file_extension)
+            if document_expected_mimes and mime_type not in document_expected_mimes:
+                logger.warning(
+                    "Document MIME type %s did not match standard values for .%s; continuing based on extension",
+                    mime_type,
+                    file_extension
+                )
         
         except Exception as e:
             logger.warning(f"Could not validate MIME type: {str(e)}")
@@ -83,7 +103,8 @@ class FileStorageService:
         file_content: bytes,
         filename: str,
         folder: str = "medical_files",
-        user_id: Optional[int] = None
+        user_id: Optional[int] = None,
+        prefer_cloudinary: bool = False
     ) -> Dict[str, Any]:
         """Upload file to Cloudinary or local storage with smart fallback"""
         # Validate file
@@ -94,6 +115,11 @@ class FileStorageService:
         try:
             file_size = len(file_content)
             file_extension = filename.lower().split('.')[-1] if '.' in filename else ''
+
+            if prefer_cloudinary:
+                if self.cloudinary_enabled:
+                    return await self._upload_to_cloudinary(file_content, filename, folder, user_id)
+                return await self._store_locally(file_content, filename, folder, user_id)
 
             # Small files (< 100KB) - store as Base64 in database
             if file_size < 100 * 1024:
@@ -115,6 +141,7 @@ class FileStorageService:
     async def _store_as_base64(self, file_content: bytes, filename: str, mime_type: str) -> Dict[str, Any]:
         """Store small files as Base64 in database"""
         try:
+            mime_type = mime_type or "application/octet-stream"
             base64_content = base64.b64encode(file_content).decode('utf-8')
             data_uri = f"data:{mime_type};base64,{base64_content}"
             
@@ -137,17 +164,18 @@ class FileStorageService:
         folder: str,
         user_id: Optional[int] = None
     ) -> Dict[str, Any]:
-        """Upload images to Cloudinary"""
+        """Upload files to Cloudinary"""
         try:
-            # Create unique public ID
-            public_id = f"{folder}/{user_id or 'anonymous'}/{filename.split('.')[0]}_{int(datetime.now().timestamp())}"
+            timestamp = int(datetime.now().timestamp())
+            safe_stem = Path(filename).stem.replace(" ", "_").replace("/", "_").replace("\\", "_")
+            folder_path = f"{folder}/{user_id or 'anonymous'}"
             
             # Upload to Cloudinary
             result = cloudinary.uploader.upload(
                 file_content,
-                public_id=public_id,
+                public_id=f"{safe_stem}_{timestamp}",
                 resource_type="auto",
-                folder=folder
+                folder=folder_path
             )
             
             return {
@@ -203,14 +231,25 @@ class FileStorageService:
             logger.error(f"Error storing file locally: {str(e)}")
             return {"success": False, "error": "Failed to store file locally"}
     
-    async def delete_file(self, file_url: str, storage_type: str) -> bool:
+    async def delete_file(
+        self,
+        file_url: str,
+        storage_type: str,
+        public_id: Optional[str] = None
+    ) -> bool:
         """Delete a file from storage"""
         try:
             if storage_type == "cloudinary":
-                # Extract public_id from URL
-                public_id = file_url.split('/')[-1].split('.')[0]
-                result = cloudinary.uploader.destroy(public_id)
-                return result.get("result") == "ok"
+                target_public_id = public_id or self._extract_cloudinary_public_id(file_url)
+                if not target_public_id:
+                    return False
+
+                for resource_type in ["image", "raw", "video"]:
+                    result = cloudinary.uploader.destroy(target_public_id, resource_type=resource_type)
+                    if result.get("result") == "ok":
+                        return True
+
+                return False
             
             elif storage_type == "local":
                 # Delete local file
@@ -242,13 +281,39 @@ class FileStorageService:
                 }
             
             elif "cloudinary.com" in file_url:
-                return {"storage_type": "cloudinary", "url": file_url}
+                return {
+                    "storage_type": "cloudinary",
+                    "url": file_url,
+                    "public_id": self._extract_cloudinary_public_id(file_url)
+                }
             
             else:
                 return {"storage_type": "local", "url": file_url}
         
         except Exception as e:
             logger.error(f"Error getting file info: {str(e)}")
+            return None
+
+    def _extract_cloudinary_public_id(self, file_url: str) -> Optional[str]:
+        """Extract a Cloudinary public ID from a delivery URL."""
+        try:
+            parsed_path = unquote(urlparse(file_url).path).strip("/")
+            path_parts = parsed_path.split("/")
+            upload_index = path_parts.index("upload")
+            public_parts = path_parts[upload_index + 1:]
+
+            for index, part in enumerate(public_parts):
+                if part.startswith("v") and part[1:].isdigit():
+                    public_parts = public_parts[index + 1:]
+                    break
+
+            if not public_parts:
+                return None
+
+            public_parts[-1] = Path(public_parts[-1]).stem
+            return "/".join(public_parts)
+
+        except (ValueError, IndexError):
             return None
 
 
