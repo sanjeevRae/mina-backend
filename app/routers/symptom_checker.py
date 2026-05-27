@@ -57,6 +57,8 @@ async def analyze_symptoms(
             unknown_symptoms=unknown_symptoms
         )
         
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error analyzing symptoms: {e}")
         raise HTTPException(
@@ -92,6 +94,8 @@ async def get_wellness_advice(
         
         return WellnessAdvice(**advice)
         
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error getting wellness advice: {e}")
         raise HTTPException(

@@ -9,6 +9,7 @@ from app.auth import verify_token
 from app.services.websocket_service import websocket_service
 from app.database import get_db
 from app.models.user import User
+from app.models.appointment import Appointment
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -88,6 +89,20 @@ async def video_call_websocket(websocket: WebSocket, room_id: str, token: str):
     user = await get_current_user_websocket(websocket, token)
     if not user:
         return
+
+    db_generator = get_db()
+    db = next(db_generator)
+    try:
+        appointment = db.query(Appointment).filter(Appointment.room_id == room_id).first()
+        if appointment and user.id in [appointment.patient_id, appointment.doctor_id]:
+            await websocket_service.video_call_manager.create_video_room(
+                appointment_id=appointment.id,
+                doctor_id=appointment.doctor_id,
+                patient_id=appointment.patient_id,
+                room_id=room_id
+            )
+    finally:
+        db_generator.close()
     
     # Connect to WebSocket service
     await websocket_service.connection_manager.connect(websocket, user.id)

@@ -1,0 +1,61 @@
+# MINIMAL DEPENDENCIES FOR RENDER FREE TIER - MEMORY OPTIMIZED
+
+# Core FastAPI Dependencies (lightweight versions)
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+python-multipart==0.0.6
+pydantic[email]==2.5.0
+pydantic-settings==2.1.0
+
+# Database (PostgreSQL for data persistence - Supabase optimized)
+sqlalchemy==2.0.23
+psycopg2-binary==2.9.7  # PostgreSQL driver with SSL support for Supabase
+
+# Authentication & Security (minimal)
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+bcrypt==4.1.1
+
+# Redis for caching (lightweight)
+redis==5.0.1
+
+# ML for symptom checker (lightweight, memory-optimized)
+lightgbm==4.1.0
+scikit-learn>=1.3.0
+numpy>=1.24.0
+joblib>=1.3.0
+
+# File Handling & Storage (only essential)
+python-magic==0.4.27
+Pillow==10.1.0
+cloudinary==1.36.0
+
+# WebSocket for video calls (minimal)
+websockets==11.0.3
+
+# Email & Notifications (minimal)
+emails==0.6
+
+# Environment & Configuration
+python-dotenv==1.0.0
+
+# HTTP Client (lightweight)
+httpx==0.25.2
+
+# Date & Time utilities
+python-dateutil==2.8.2
+
+# System monitoring for health checks
+psutil==5.9.0
+
+# NOTE: Use pip install --no-cache-dir -r requirements.txt for deployment
+# This reduces memory usage during installation on Render free tier
+
+# REMOVED HEAVY DEPENDENCIES:
+# - google-auth, google-auth-oauthlib, google-auth-httplib2 (Firebase - too heavy)
+# - aiohttp (replaced with lightweight httpx)
+# - alembic (database migrations - not needed for free tier)
+# - psycopg2-binary, asyncpg (PostgreSQL drivers - using SQLite)
+# - aioredis (using basic redis)
+# - pytest, pytest-asyncio (testing - not needed in production)
+# - email-validator (validation handled by pydantic)

@@ -152,9 +152,18 @@ class VideoCallManager:
     def __init__(self, connection_manager: ConnectionManager):
         self.connection_manager = connection_manager
     
-    async def create_video_room(self, appointment_id: int, doctor_id: int, patient_id: int) -> str:
+    async def create_video_room(
+        self,
+        appointment_id: int,
+        doctor_id: int,
+        patient_id: int,
+        room_id: Optional[str] = None
+    ) -> str:
         """Create a new video call room"""
-        room_id = f"video_{appointment_id}_{uuid.uuid4().hex[:8]}"
+        room_id = room_id or f"video_{appointment_id}_{uuid.uuid4().hex[:8]}"
+
+        if room_id in self.connection_manager.video_rooms:
+            return room_id
         
         room_data = {
             "room_id": room_id,
@@ -173,7 +182,8 @@ class VideoCallManager:
                 "data": {
                     "room_id": room_id,
                     "appointment_id": appointment_id,
-                    "join_url": f"/video-call/{room_id}"
+                    "join_url": f"/video-call/{room_id}",
+                    "websocket_path": f"/api/v1/ws/video/{room_id}/{{token}}"
                 }
             })
         

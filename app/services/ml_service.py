@@ -110,15 +110,19 @@ class SymptomCheckerService:
         # Preprocess
         X = self.preprocess_symptoms(symptoms)
         
-        # Predict probabilities
-        probabilities = self.model.predict(X)[0]
+        try:
+            # Predict probabilities
+            probabilities = self.model.predict(X)[0]
+        except Exception as e:
+            logger.exception("LightGBM symptom prediction failed; using rule-based fallback")
+            return self._fallback_predict(symptoms, top_k=top_k, error=e)
         
         # Get top k predictions
         top_indices = np.argsort(probabilities)[-top_k:][::-1]
         
         predictions = []
         for idx in top_indices:
-            condition = self.label_encoder.classes_[idx]
+            condition = str(self.label_encoder.classes_[idx])
             confidence = float(probabilities[idx])
             
             # Get condition info
@@ -133,6 +137,47 @@ class SymptomCheckerService:
                                    in condition_details.get("symptoms", [])]
             })
         
+        return predictions
+
+    def _fallback_predict(self, symptoms: List[str], top_k: int = 3, error: Optional[Exception] = None) -> List[Dict]:
+        """Rank conditions by symptom overlap when model inference fails."""
+        if not self.condition_info:
+            if error:
+                raise error
+            return []
+
+        normalized_symptoms = {s.lower().replace(' ', '_') for s in symptoms}
+        scored_conditions = []
+
+        for condition, details in self.condition_info.items():
+            condition_symptoms = set(details.get("symptoms", []))
+            if not condition_symptoms:
+                continue
+
+            matched = normalized_symptoms.intersection(condition_symptoms)
+            if not matched:
+                continue
+
+            coverage = len(matched) / len(condition_symptoms)
+            input_match = len(matched) / max(len(normalized_symptoms), 1)
+            score = (coverage * 0.6) + (input_match * 0.4)
+            scored_conditions.append((score, condition, details, matched))
+
+        scored_conditions.sort(key=lambda item: item[0], reverse=True)
+
+        predictions = []
+        for score, condition, details, matched in scored_conditions[:top_k]:
+            predictions.append({
+                "condition": str(condition),
+                "confidence": round(score * 100, 2),
+                "severity": details.get("severity", "unknown"),
+                "recommendations": details.get("recommendations", []),
+                "matched_symptoms": [
+                    symptom for symptom in symptoms
+                    if symptom.lower().replace(' ', '_') in matched
+                ]
+            })
+
         return predictions
     
     def get_all_symptoms(self) -> List[str]:

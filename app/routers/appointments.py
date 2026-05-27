@@ -1,6 +1,6 @@
 from datetime import datetime
 from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import and_, or_
 
@@ -17,6 +17,24 @@ from app.services.notification_service import notification_service
 import uuid
 
 router = APIRouter(prefix="/appointments", tags=["appointments"])
+
+
+def build_video_call_payload(request: Request, appointment: Appointment) -> dict:
+    """Build stable video-call join details for API clients."""
+    base_url = str(request.base_url).rstrip("/")
+    ws_scheme = "wss" if request.url.scheme == "https" else "ws"
+    ws_base = f"{ws_scheme}://{request.url.netloc}"
+    room_id = appointment.room_id
+
+    return {
+        "room_id": room_id,
+        "meeting_link": appointment.meeting_link,
+        "join_url": appointment.meeting_link,
+        "websocket_path": f"/api/v1/ws/video/{room_id}/{{token}}",
+        "websocket_url_template": f"{ws_base}/api/v1/ws/video/{room_id}/{{token}}",
+        "api_join_url": f"{base_url}/api/v1/appointments/{appointment.id}/start-video-call",
+        "appointment_id": appointment.id
+    }
 
 
 @router.post("/", response_model=AppointmentResponse)
@@ -353,6 +371,7 @@ async def cancel_appointment(
 @router.post("/{appointment_id}/start-video-call")
 async def start_video_call(
     appointment_id: int,
+    request: Request,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -383,19 +402,17 @@ async def start_video_call(
         appointment.room_id = f"room_{uuid.uuid4().hex[:12]}"
         appointment.meeting_link = f"/video-call/{appointment.room_id}"
         db.commit()
+        db.refresh(appointment)
     
     # Create video room in WebSocket service
-    room_id = await websocket_service.video_call_manager.create_video_room(
+    await websocket_service.video_call_manager.create_video_room(
         appointment_id=appointment.id,
         doctor_id=appointment.doctor_id,
-        patient_id=appointment.patient_id
+        patient_id=appointment.patient_id,
+        room_id=appointment.room_id
     )
-    
-    return {
-        "room_id": room_id,
-        "meeting_link": appointment.meeting_link,
-        "appointment_id": appointment.id
-    }
+
+    return build_video_call_payload(request, appointment)
 
 
 @router.get("/upcoming", response_model=List[AppointmentResponse])
