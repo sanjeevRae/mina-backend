@@ -149,5 +149,5 @@ uploads/
 
 test.db
 firebase-service-account.json
-models/
+/models/
 *.joblib
