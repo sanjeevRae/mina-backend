@@ -78,6 +78,9 @@ class UserResponse(UserBase):
     medical_conditions: Optional[List[str]] = []
     allergies: Optional[List[str]] = []
     current_medications: Optional[List[str]] = []
+    specialization: Optional[str] = None
+    rating: float = 0.0
+    rating_count: int = 0
     created_at: datetime
     last_login: Optional[datetime] = None
     

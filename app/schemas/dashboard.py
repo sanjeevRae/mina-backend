@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import List, Optional
 
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, Field
 
 from app.models.appointment import AppointmentStatus, AppointmentType
 from app.models.user import UserRole
@@ -16,6 +16,9 @@ class DashboardContact(BaseModel):
     gender: Optional[str] = None
     role: UserRole
     profile_image_url: Optional[str] = None
+    specialization: Optional[str] = None
+    rating: float = 0.0
+    rating_count: int = 0
     is_verified: bool = False
     can_chat: bool = True
     can_call: bool = False
@@ -57,3 +60,21 @@ class DoctorDashboardResponse(BaseModel):
     schedule: List[AppointmentResponse]
     recent_conversations: List[DashboardConversation]
     unread: DashboardUnreadSummary
+
+
+class DoctorProfileUpdate(BaseModel):
+    specialization: str = Field(..., min_length=2, max_length=255)
+
+
+class DoctorRatingCreate(BaseModel):
+    rating: int = Field(..., ge=1, le=5)
+    comment: Optional[str] = Field(default=None, max_length=1000)
+
+
+class DoctorRatingResponse(BaseModel):
+    doctor_id: int
+    patient_id: int
+    rating: int
+    average_rating: float
+    rating_count: int
+    comment: Optional[str] = None

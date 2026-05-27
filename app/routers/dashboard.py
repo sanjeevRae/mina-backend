@@ -9,6 +9,7 @@ from app.auth import get_current_user
 from app.database import get_db
 from app.models.appointment import Appointment, AppointmentStatus, AppointmentType
 from app.models.communication import ChatMessage, Notification
+from app.models.rating import DoctorRating
 from app.models.user import User, UserRole
 from app.schemas.appointment import AppointmentResponse
 from app.schemas.dashboard import (
@@ -16,6 +17,9 @@ from app.schemas.dashboard import (
     DashboardConversation,
     DashboardUnreadSummary,
     DoctorDashboardResponse,
+    DoctorProfileUpdate,
+    DoctorRatingCreate,
+    DoctorRatingResponse,
     PatientDashboardResponse,
 )
 
@@ -230,6 +234,9 @@ def _build_contacts(
                 gender=contact.gender,
                 role=contact.role,
                 profile_image_url=contact.profile_image_url,
+                specialization=contact.specialization,
+                rating=contact.rating or 0.0,
+                rating_count=contact.rating_count or 0,
                 is_verified=contact.is_verified,
                 can_chat=True,
                 can_call=can_call,
@@ -351,4 +358,95 @@ async def get_doctor_dashboard(
         schedule=_get_schedule_for_doctor(current_user, db),
         recent_conversations=_build_recent_conversations(current_user, db),
         unread=_get_unread_summary(current_user, db),
+    )
+
+
+@router.put("/doctor/profile", response_model=DashboardContact)
+async def update_doctor_dashboard_profile(
+    profile: DoctorProfileUpdate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Allow doctors to update dashboard profile fields."""
+    _require_role(current_user, UserRole.DOCTOR)
+
+    current_user.specialization = profile.specialization.strip()
+    db.commit()
+    db.refresh(current_user)
+
+    return DashboardContact(
+        id=current_user.id,
+        full_name=current_user.full_name,
+        email=current_user.email,
+        phone=current_user.phone,
+        gender=current_user.gender,
+        role=current_user.role,
+        profile_image_url=current_user.profile_image_url,
+        specialization=current_user.specialization,
+        rating=current_user.rating or 0.0,
+        rating_count=current_user.rating_count or 0,
+        is_verified=current_user.is_verified,
+        can_chat=True,
+        can_call=False,
+    )
+
+
+@router.post("/doctors/{doctor_id}/rating", response_model=DoctorRatingResponse)
+async def rate_doctor(
+    doctor_id: int,
+    rating_data: DoctorRatingCreate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Create or update the current patient's rating for a doctor."""
+    _require_role(current_user, UserRole.PATIENT)
+
+    doctor = db.query(User).filter(
+        User.id == doctor_id,
+        User.role == UserRole.DOCTOR,
+        User.is_active == True,
+    ).first()
+    if not doctor:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Doctor not found",
+        )
+
+    rating = db.query(DoctorRating).filter(
+        DoctorRating.doctor_id == doctor_id,
+        DoctorRating.patient_id == current_user.id,
+    ).first()
+
+    if rating:
+        rating.rating = rating_data.rating
+        rating.comment = rating_data.comment
+    else:
+        rating = DoctorRating(
+            doctor_id=doctor_id,
+            patient_id=current_user.id,
+            rating=rating_data.rating,
+            comment=rating_data.comment,
+        )
+        db.add(rating)
+
+    db.flush()
+
+    average_rating, rating_count = db.query(
+        func.avg(DoctorRating.rating),
+        func.count(DoctorRating.id),
+    ).filter(DoctorRating.doctor_id == doctor_id).one()
+
+    doctor.rating = round(float(average_rating or 0), 2)
+    doctor.rating_count = int(rating_count or 0)
+    db.commit()
+    db.refresh(rating)
+    db.refresh(doctor)
+
+    return DoctorRatingResponse(
+        doctor_id=doctor.id,
+        patient_id=current_user.id,
+        rating=rating.rating,
+        average_rating=doctor.rating or 0.0,
+        rating_count=doctor.rating_count or 0,
+        comment=rating.comment,
     )
