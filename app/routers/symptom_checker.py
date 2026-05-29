@@ -39,6 +39,8 @@ async def chat_with_symptom_checker(
     """
     try:
         result = symptom_checker_service.chat(chat_input.message)
+        result["reply"] = result.get("response")
+        result["is_chat"] = not result.get("should_show_medical_analysis", False)
         result["predictions"] = [
             ConditionPrediction(**prediction)
             for prediction in result.get("predictions", [])
@@ -73,8 +75,10 @@ async def analyze_symptoms(
                 unknown_symptoms=chat_result.get("unknown_terms", []),
                 response_type=chat_result.get("response_type", "chat"),
                 should_show_medical_analysis=chat_result.get("should_show_medical_analysis", False),
+                is_chat=not chat_result.get("should_show_medical_analysis", False),
                 intent=chat_result.get("intent"),
                 message=chat_result.get("response"),
+                reply=chat_result.get("response"),
                 suggestions=chat_result.get("suggestions", [])
             )
 
@@ -88,8 +92,10 @@ async def analyze_symptoms(
                 unknown_symptoms=chat_result.get("unknown_terms", []),
                 response_type="medical_analysis",
                 should_show_medical_analysis=True,
+                is_chat=False,
                 intent=chat_result.get("intent"),
                 message=chat_result.get("response"),
+                reply=None,
                 suggestions=chat_result.get("suggestions", []),
                 disclaimer=MEDICAL_DISCLAIMER
             )
@@ -107,8 +113,10 @@ async def analyze_symptoms(
                 unknown_symptoms=unknown_symptoms,
                 response_type=chat_result.get("response_type", "chat"),
                 should_show_medical_analysis=chat_result.get("should_show_medical_analysis", False),
+                is_chat=not chat_result.get("should_show_medical_analysis", False),
                 intent=chat_result.get("intent"),
                 message=chat_result.get("response"),
+                reply=chat_result.get("response"),
                 suggestions=chat_result.get("suggestions", [])
             )
         
@@ -124,6 +132,7 @@ async def analyze_symptoms(
             unknown_symptoms=unknown_symptoms,
             response_type="medical_analysis",
             should_show_medical_analysis=True,
+            is_chat=False,
             intent="symptom_report",
             disclaimer=MEDICAL_DISCLAIMER
         )
