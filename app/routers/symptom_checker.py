@@ -36,13 +36,11 @@ def _conversation_prediction(chat_result: dict) -> ConditionPrediction:
         "emergency_guidance": "Emergency Guidance"
     }
     severity = "serious" if intent == "emergency_guidance" else "mild"
-    recommendations = [chat_result.get("response", "Tell me your symptoms and I will try to help.")]
-    recommendations.extend(chat_result.get("suggestions", [])[:3])
     return ConditionPrediction(
         condition=title_map.get(intent, "Symptom Checker Assistant"),
         confidence=100.0,
         severity=severity,
-        recommendations=recommendations,
+        recommendations=[chat_result.get("response", "Tell me your symptoms and I will try to help.")],
         matched_symptoms=[]
     )
 
@@ -89,9 +87,8 @@ async def analyze_symptoms(
         chat_result = symptom_checker_service.chat(" ".join(symptom_input.symptoms))
 
         if chat_result.get("intent") != "symptom_report":
-            predictions = [_conversation_prediction(chat_result)]
             return SymptomCheckResult(
-                predictions=predictions,
+                predictions=[],
                 valid_symptoms=chat_result.get("extracted_symptoms", []),
                 unknown_symptoms=chat_result.get("unknown_terms", []),
                 intent=chat_result.get("intent"),
