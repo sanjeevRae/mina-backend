@@ -8,6 +8,8 @@ import logging
 
 from app.schemas.symptom_checker import (
     SymptomInput,
+    SymptomChatInput,
+    SymptomChatResponse,
     SymptomCheckResult,
     WellnessAdvice,
     SymptomListResponse,
@@ -20,6 +22,33 @@ from app.models.user import User
 
 router = APIRouter(prefix="/symptom-checker", tags=["AI Symptom Checker"])
 logger = logging.getLogger(__name__)
+
+
+@router.post("/chat", response_model=SymptomChatResponse)
+async def chat_with_symptom_checker(
+    chat_input: SymptomChatInput,
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Lightweight rule-based chat for greetings, help, and natural symptom text.
+
+    This endpoint does not use a heavy NLP model. It extracts known symptoms
+    from normal sentences, gives friendly guidance, and routes symptom reports
+    through the trained symptom checker.
+    """
+    try:
+        result = symptom_checker_service.chat(chat_input.message)
+        result["predictions"] = [
+            ConditionPrediction(**prediction)
+            for prediction in result.get("predictions", [])
+        ]
+        return SymptomChatResponse(**result)
+    except Exception as e:
+        logger.error(f"Error in symptom checker chat: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to process chat message: {str(e)}"
+        )
 
 
 @router.post("/analyze", response_model=SymptomCheckResult)

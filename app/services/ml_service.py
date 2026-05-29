@@ -5,6 +5,8 @@ Memory-optimized lightweight service for Render free tier
 import json
 import numpy as np
 import joblib
+import re
+from difflib import get_close_matches
 from pathlib import Path
 from typing import List, Dict, Optional, Tuple
 import lightgbm as lgb
@@ -180,6 +182,56 @@ SYMPTOM_ALIASES = {
     "cold fingers": "cold_hands",
 }
 
+CHAT_GREETINGS = {
+    "hi", "hello", "hey", "namaste", "good morning", "good afternoon",
+    "good evening", "help me", "can you help me"
+}
+
+CHAT_HELP_TERMS = {
+    "help", "how to use", "how do i use", "what can you do", "guide",
+    "instructions", "usage", "symptom checker", "how it works"
+}
+
+CHAT_THANKS = {"thanks", "thank you", "thx", "ok thanks", "okay thanks"}
+
+OUT_OF_SCOPE_TERMS = {
+    "weather", "movie", "music", "joke", "football", "cricket", "stock",
+    "coding", "homework", "travel", "restaurant", "shopping"
+}
+
+STOP_TERMS = {
+    "i", "im", "am", "have", "has", "having", "feel", "feeling", "with",
+    "and", "or", "the", "a", "an", "my", "me", "is", "are", "was", "were",
+    "for", "since", "from", "please", "what", "should", "do", "can", "you",
+    "but", "also", "very", "really", "today", "yesterday", "days", "day",
+    "week", "weeks", "month", "months",
+    "this"
+}
+
+NEGATION_TERMS = {
+    "no", "not", "never", "without", "denies", "deny", "none", "dont",
+    "doesnt", "didnt", "cannot", "cant"
+}
+
+EMERGENCY_CHAT_TERMS = {
+    "emergency", "urgent", "911", "ambulance", "cant breathe",
+    "cannot breathe", "severe chest pain", "chest pressure",
+    "face drooping", "slurred speech", "one sided weakness",
+    "unconscious", "passed out", "seizure", "blue lips",
+    "vomiting blood", "black stool", "worst headache"
+}
+
+SEVERITY_TERMS = {
+    "mild": "mild",
+    "little": "mild",
+    "moderate": "moderate",
+    "bad": "moderate",
+    "severe": "severe",
+    "very bad": "severe",
+    "unbearable": "severe",
+    "worst": "severe"
+}
+
 
 class SymptomCheckerService:
     """Lightweight symptom checker inference service"""
@@ -319,7 +371,12 @@ class SymptomCheckerService:
                 "matched_symptoms": [s for s in symptoms if self._normalize_symptom(s)
                                    in condition_details.get("symptoms", [])]
             })
-        
+
+        if predictions and predictions[0]["confidence"] < 20:
+            fallback_predictions = self._fallback_predict(symptoms, top_k=top_k)
+            if fallback_predictions and fallback_predictions[0]["confidence"] > predictions[0]["confidence"]:
+                return fallback_predictions
+
         return predictions
 
     def _fallback_predict(self, symptoms: List[str], top_k: int = 3, error: Optional[Exception] = None) -> List[Dict]:
@@ -413,6 +470,176 @@ class SymptomCheckerService:
                 unknown.append(symptom)
         
         return valid, unknown
+
+    def chat(self, message: str) -> Dict:
+        """Small rule-based chat layer for normal symptom checker conversation."""
+        if self.symptoms_list is None:
+            self.load_model()
+
+        text = self._normalize_chat_text(message)
+        extracted_symptoms, unknown_terms = self.extract_symptoms_from_text(message)
+        context = self._extract_message_context(text)
+
+        if self._contains_any(text, EMERGENCY_CHAT_TERMS) and not extracted_symptoms:
+            return {
+                "intent": "emergency_guidance",
+                "response": "That may be urgent. If there is severe chest pain, stroke signs, trouble breathing, seizure, fainting, or heavy bleeding, seek emergency medical help now.",
+                "extracted_symptoms": [],
+                "unknown_terms": unknown_terms,
+                "predictions": [],
+                "suggestions": [
+                    "Call local emergency services if symptoms are severe",
+                    "Do not drive yourself during a possible emergency",
+                    "Tell me the symptoms if you want a basic symptom check"
+                ]
+            }
+
+        if self._contains_any(text, CHAT_THANKS):
+            return {
+                "intent": "thanks",
+                "response": "You're welcome. Keep monitoring how you feel, and seek medical care if symptoms become severe or worrying.",
+                "extracted_symptoms": extracted_symptoms,
+                "unknown_terms": unknown_terms,
+                "predictions": [],
+                "suggestions": [
+                    "Tell me symptoms in one sentence",
+                    "Example: I have fever, cough, and chest pain"
+                ]
+            }
+
+        if self._contains_any(text, CHAT_GREETINGS) and not extracted_symptoms:
+            return {
+                "intent": "greeting",
+                "response": "Hi, I can help you check possible conditions from symptoms. Tell me what you are feeling, like: I have fever, cough, headache, and sore throat.",
+                "extracted_symptoms": [],
+                "unknown_terms": unknown_terms,
+                "predictions": [],
+                "suggestions": [
+                    "Describe 2 to 6 symptoms",
+                    "Mention emergency symptoms immediately",
+                    "Use /symptom-checker/symptoms to see supported symptoms"
+                ]
+            }
+
+        if self._contains_any(text, CHAT_HELP_TERMS) and not extracted_symptoms:
+            return {
+                "intent": "help",
+                "response": "Send your symptoms in simple language. I will extract the symptoms I recognize, check possible conditions, and share basic next steps. This is not a diagnosis.",
+                "extracted_symptoms": [],
+                "unknown_terms": unknown_terms,
+                "predictions": [],
+                "suggestions": [
+                    "Example: I have burning urination and lower belly pain",
+                    "Example: I feel dizzy with chest pressure",
+                    "For severe chest pain, stroke signs, or trouble breathing, seek emergency care"
+                ]
+            }
+
+        if extracted_symptoms:
+            predictions = self.predict(extracted_symptoms, top_k=3)
+            if predictions:
+                top = predictions[0]
+                symptom_text = ", ".join(symptom.replace("_", " ") for symptom in extracted_symptoms)
+                response = (
+                    f"I found {len(extracted_symptoms)} symptom(s): "
+                    f"{symptom_text}. The closest match is "
+                    f"{top['condition']} ({top['confidence']}% confidence). "
+                    "Use this as guidance only, not a diagnosis."
+                )
+                if context.get("duration"):
+                    response += f" I noticed the duration: {context['duration']}."
+                if context.get("severity"):
+                    response += f" You described the severity as {context['severity']}."
+                if top.get("severity") == "emergency" or context.get("emergency"):
+                    response = (
+                        response
+                        + " These symptoms may be urgent. Please seek emergency medical help now."
+                    )
+            else:
+                response = (
+                    f"I recognized {', '.join(extracted_symptoms)}, but I could not find a strong match. "
+                    "Please add more symptoms or consult a healthcare professional."
+                )
+
+            return {
+                "intent": "symptom_report",
+                "response": response,
+                "extracted_symptoms": extracted_symptoms,
+                "unknown_terms": unknown_terms,
+                "predictions": predictions,
+                "suggestions": [
+                    "Add symptom duration and severity",
+                    "Say if a symptom is absent, for example: fever but no cough",
+                    "Add other symptoms you are feeling",
+                    "Seek urgent care for chest pain, stroke signs, severe breathing trouble, or confusion"
+                ]
+            }
+
+        if self._contains_any(text, OUT_OF_SCOPE_TERMS):
+            return {
+                "intent": "out_of_scope",
+                "response": "I am focused on symptom checking and basic wellness guidance. Tell me your symptoms and I will try to help safely.",
+                "extracted_symptoms": [],
+                "unknown_terms": unknown_terms,
+                "predictions": [],
+                "suggestions": [
+                    "Example: I have fever and body aches",
+                    "Example: I have stomach pain and vomiting"
+                ]
+            }
+
+        return {
+            "intent": "unknown",
+            "response": "I did not recognize symptoms in that message. Please describe what you feel using simple words, for example: fever, cough, headache, stomach pain, dizziness, or rash.",
+            "extracted_symptoms": [],
+            "unknown_terms": unknown_terms,
+            "predictions": [],
+            "suggestions": [
+                "Try listing symptoms separated by commas",
+                "Use common words like toothache, pink eye, or sore throat",
+                "Use /symptom-checker/symptoms to see supported symptoms"
+            ]
+        }
+
+    def extract_symptoms_from_text(self, message: str) -> Tuple[List[str], List[str]]:
+        """Extract known symptoms from free text using aliases and symptom names."""
+        if self.symptoms_list is None:
+            self.load_model()
+
+        text = self._normalize_chat_text(message)
+        found = []
+        found_set = set()
+        matched_spans = []
+
+        phrase_map = self._build_phrase_map()
+
+        for phrase in sorted(phrase_map, key=len, reverse=True):
+            canonical = phrase_map[phrase]
+            if canonical not in self.symptoms_list:
+                continue
+            for match in re.finditer(rf"(?<![a-z0-9]){re.escape(phrase)}(?![a-z0-9])", text):
+                span = match.span()
+                if self._span_overlaps(span, matched_spans):
+                    continue
+                if self._is_negated(text, span[0]):
+                    matched_spans.append(span)
+                    continue
+                if canonical not in found_set:
+                    found.append(canonical)
+                    found_set.add(canonical)
+                matched_spans.append(span)
+
+        fuzzy_matches = self._fuzzy_symptom_matches(text, phrase_map, matched_spans)
+        for canonical, span in fuzzy_matches:
+            if canonical in self.symptoms_list and canonical not in found_set:
+                found.append(canonical)
+                found_set.add(canonical)
+            matched_spans.append(span)
+
+        if found:
+            return found, self._unknown_terms_from_text(text, matched_spans)
+
+        return [], self._unknown_terms_from_text(text, matched_spans)
     
     def get_wellness_advice(self, symptoms: List[str]) -> Dict:
         """Get general wellness advice based on symptoms"""
@@ -463,6 +690,106 @@ class SymptomCheckerService:
                 "Seek medical advice if symptoms persist beyond a week",
                 "Contact healthcare provider if symptoms worsen"
             ]
+
+    @staticmethod
+    def _normalize_chat_text(message: str) -> str:
+        text = str(message or "").strip().lower().replace("-", " ")
+        text = re.sub(r"[^a-z0-9\s]", " ", text)
+        return " ".join(text.split())
+
+    def _build_phrase_map(self) -> Dict[str, str]:
+        phrase_map = {}
+        for symptom in self.symptoms_list or []:
+            readable = symptom.replace("_", " ")
+            phrase_map[readable] = symptom
+        phrase_map.update(SYMPTOM_ALIASES)
+        return phrase_map
+
+    @staticmethod
+    def _span_overlaps(span: Tuple[int, int], spans: List[Tuple[int, int]]) -> bool:
+        start, end = span
+        return any(start < existing_end and end > existing_start for existing_start, existing_end in spans)
+
+    @staticmethod
+    def _is_negated(text: str, start_index: int) -> bool:
+        before = text[:start_index].split()[-4:]
+        negation_positions = [i for i, term in enumerate(before) if term in NEGATION_TERMS]
+        if not negation_positions:
+            return False
+        connector_positions = [i for i, term in enumerate(before) if term in {"but", "except"}]
+        return not connector_positions or max(connector_positions) < max(negation_positions)
+
+    def _fuzzy_symptom_matches(
+        self,
+        text: str,
+        phrase_map: Dict[str, str],
+        matched_spans: List[Tuple[int, int]]
+    ) -> List[Tuple[str, Tuple[int, int]]]:
+        """Catch small typos such as fevr, couhg, dizzyness, or nausia."""
+        words = re.findall(r"[a-z0-9]+", text)
+        known_single_words = {
+            phrase: canonical
+            for phrase, canonical in phrase_map.items()
+            if " " not in phrase and len(phrase) >= 5 and canonical in (self.symptoms_list or [])
+        }
+
+        fuzzy = []
+        for word in words:
+            if len(word) < 4 or word in STOP_TERMS:
+                continue
+            matches = get_close_matches(word, known_single_words.keys(), n=1, cutoff=0.76)
+            if not matches:
+                continue
+            match = matches[0]
+            canonical = known_single_words[match]
+            word_match = re.search(rf"(?<![a-z0-9]){re.escape(word)}(?![a-z0-9])", text)
+            if word_match and (
+                self._span_overlaps(word_match.span(), matched_spans)
+                or self._is_negated(text, word_match.start())
+            ):
+                continue
+            fuzzy.append((canonical, word_match.span() if word_match else (0, 0)))
+        return fuzzy[:3]
+
+    @staticmethod
+    def _unknown_terms_from_text(text: str, matched_spans: List[Tuple[int, int]]) -> List[str]:
+        remaining = list(text)
+        for start, end in matched_spans:
+            for index in range(start, end):
+                if index < len(remaining):
+                    remaining[index] = " "
+        words = [
+            word for word in re.findall(r"[a-z0-9]+", "".join(remaining))
+            if len(word) > 3 and word not in STOP_TERMS and word not in NEGATION_TERMS
+        ]
+        return words[:5]
+
+    @staticmethod
+    def _extract_message_context(text: str) -> Dict[str, Optional[str]]:
+        duration_match = re.search(
+            r"\b(?:for|since)\s+((?:\d+\s+)?(?:hour|hours|day|days|week|weeks|month|months|yesterday|today))\b",
+            text
+        )
+        severity = None
+        for term, value in SEVERITY_TERMS.items():
+            if re.search(rf"(?<![a-z0-9]){re.escape(term)}(?![a-z0-9])", text):
+                severity = value
+                break
+        return {
+            "duration": duration_match.group(1) if duration_match else None,
+            "severity": severity,
+            "emergency": any(
+                re.search(rf"(?<![a-z0-9]){re.escape(term)}(?![a-z0-9])", text)
+                for term in EMERGENCY_CHAT_TERMS
+            )
+        }
+
+    @staticmethod
+    def _contains_any(text: str, terms) -> bool:
+        return any(
+            re.search(rf"(?<![a-z0-9]){re.escape(term)}(?![a-z0-9])", text)
+            for term in terms
+        )
     
     def _auto_train_model(self):
         """Auto-train model if not found (first deployment)"""

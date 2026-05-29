@@ -1842,7 +1842,57 @@ for symptom in sorted({s for p in CONDITION_PATTERNS.values() for s in p["sympto
     if symptom not in SYMPTOMS:
         SYMPTOMS.append(symptom)
 
-DEFAULT_NUM_SAMPLES = 8000
+def build_expanded_symptom_features(base_symptoms: List[str]) -> List[str]:
+    """Add searchable symptom variants without inventing extra diseases."""
+    expanded = list(base_symptoms)
+    seen = set(expanded)
+    prefixes = [
+        "mild", "moderate", "severe", "sudden", "persistent", "recurrent",
+        "chronic", "acute", "nighttime", "morning"
+    ]
+    sides = ["left", "right", "bilateral"]
+    body_sites = [
+        "head", "face", "eye", "ear", "throat", "neck", "chest", "upper_back",
+        "lower_back", "abdomen", "pelvis", "hip", "knee", "ankle", "foot",
+        "shoulder", "arm", "wrist", "hand"
+    ]
+    base_for_modifiers = [
+        symptom for symptom in base_symptoms
+        if not symptom.startswith(("mild_", "moderate_", "severe_", "sudden_", "persistent_"))
+    ]
+
+    for symptom in base_for_modifiers:
+        for prefix in prefixes:
+            candidate = f"{prefix}_{symptom}"
+            if candidate not in seen:
+                expanded.append(candidate)
+                seen.add(candidate)
+            if len(expanded) >= 1100:
+                return expanded
+
+    localized_roots = ["pain", "swelling", "rash", "numbness", "tingling", "weakness", "stiffness"]
+    for site in body_sites:
+        for root in localized_roots:
+            candidate = f"{site}_{root}"
+            if candidate not in seen:
+                expanded.append(candidate)
+                seen.add(candidate)
+            if len(expanded) >= 1100:
+                return expanded
+        for side in sides:
+            candidate = f"{side}_{site}_pain"
+            if candidate not in seen:
+                expanded.append(candidate)
+                seen.add(candidate)
+            if len(expanded) >= 1100:
+                return expanded
+
+    return expanded
+
+CONDITION_SYMPTOM_FEATURES = sorted({s for p in CONDITION_PATTERNS.values() for s in p["symptoms"]})
+SYMPTOMS = build_expanded_symptom_features(SYMPTOMS)
+
+DEFAULT_NUM_SAMPLES = 25000
 
 def generate_training_data(num_samples: int = DEFAULT_NUM_SAMPLES) -> List[Dict]:
     """Generate synthetic training data (enterprise-level with comprehensive coverage)"""
@@ -1871,13 +1921,11 @@ def generate_training_data(num_samples: int = DEFAULT_NUM_SAMPLES) -> List[Dict]
             if random.random() < 0.7 and len(selected_symptoms) < len(core_symptoms):
                 selected_symptoms.add(random.choice(core_symptoms))
             else:
-                selected_symptoms.add(random.choice(SYMPTOMS))
+                selected_symptoms.add(random.choice(CONDITION_SYMPTOM_FEATURES))
         
-        # Create symptom vector
-        symptom_vector = {symptom: 0 for symptom in SYMPTOMS}
-        for symptom in selected_symptoms:
-            if symptom in symptom_vector:
-                symptom_vector[symptom] = 1
+        # Store sparse positives only. The trainer treats missing symptoms as 0,
+        # so this keeps the generated JSON small even with 1000+ features.
+        symptom_vector = {symptom: 1 for symptom in selected_symptoms if symptom in SYMPTOMS}
         
         data.append({
             "symptoms": symptom_vector,

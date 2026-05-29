@@ -24,6 +24,24 @@ class SymptomInput(BaseModel):
         }
 
 
+class SymptomChatInput(BaseModel):
+    """Input schema for lightweight symptom checker chat"""
+    message: str = Field(
+        ...,
+        description="Natural language message from the user",
+        min_length=1,
+        max_length=1000,
+        example="Hi, I have fever and a sore throat. How do I use this?"
+    )
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "message": "Hi, I have fever and a sore throat. What should I do?"
+            }
+        }
+
+
 class ConditionPrediction(BaseModel):
     """Single condition prediction"""
     condition: str = Field(..., description="Name of the predicted condition")
@@ -41,6 +59,21 @@ class SymptomCheckResult(BaseModel):
     analyzed_at: datetime = Field(default_factory=datetime.utcnow, description="Analysis timestamp")
     disclaimer: str = Field(
         default="This is an AI-based suggestion and not a medical diagnosis. Always consult a healthcare professional for proper medical advice.",
+        description="Medical disclaimer"
+    )
+
+
+class SymptomChatResponse(BaseModel):
+    """Lightweight conversational response for symptom checker"""
+    intent: str = Field(..., description="Detected intent such as greeting, help, symptom_report, or out_of_scope")
+    response: str = Field(..., description="Friendly response text")
+    extracted_symptoms: List[str] = Field(default=[], description="Symptoms detected from the message")
+    unknown_terms: List[str] = Field(default=[], description="Possible health terms that were not recognized")
+    predictions: List[ConditionPrediction] = Field(default=[], description="Predictions when symptoms are detected")
+    suggestions: List[str] = Field(default=[], description="Suggested next actions")
+    analyzed_at: datetime = Field(default_factory=datetime.utcnow)
+    disclaimer: str = Field(
+        default="This is an AI-based suggestion and not a medical diagnosis. Seek urgent medical care for emergency symptoms.",
         description="Medical disclaimer"
     )
 

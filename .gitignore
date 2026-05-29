@@ -136,6 +136,7 @@ uploads/
 .DS_Store
 # data/
 !data/symptom_data.csv
+data/symptom_condition_data.json
 .vscode/
 .idea/
 *.swp
