@@ -60,15 +60,18 @@ class SymptomCheckerService:
             with open(model_path / "metadata.json", 'r') as f:
                 self.metadata = json.load(f)
             
-            self.symptoms_list = self.metadata['symptoms_list']
-            self.condition_info = self.metadata['condition_info']
+            self.symptoms_list = self.metadata.get('symptoms_list') or []
+            self.condition_info = self.metadata.get('condition_info') or {}
+
+            if not self.symptoms_list:
+                raise ValueError("Symptom checker metadata is missing symptoms_list")
             
             # Load label encoder
             self.label_encoder = joblib.load(model_path / "label_encoder.pkl")
             
             logger.info(f"✅ Symptom checker model loaded successfully")
             logger.info(f"   - Features: {len(self.symptoms_list)}")
-            logger.info(f"   - Conditions: {len(self.metadata['conditions'])}")
+            logger.info(f"   - Conditions: {len(self.condition_info)}")
             
         except Exception as e:
             logger.error(f"Failed to load symptom checker model: {e}")
@@ -84,7 +87,7 @@ class SymptomCheckerService:
         feature_vector = np.zeros(len(self.symptoms_list), dtype=np.float32)
         
         # Normalize symptom names (lowercase, replace spaces with underscores)
-        normalized_symptoms = [s.lower().replace(' ', '_') for s in symptoms]
+        normalized_symptoms = [self._normalize_symptom(s) for s in symptoms]
         
         for i, symptom in enumerate(self.symptoms_list):
             if symptom in normalized_symptoms:
@@ -107,10 +110,12 @@ class SymptomCheckerService:
         if self.model is None:
             self.load_model()
         
-        # Preprocess
-        X = self.preprocess_symptoms(symptoms)
-        
         try:
+            # Preprocess and predict probabilities. Keep both operations in the
+            # fallback boundary because LightGBM can raise native errors such as
+            # unordered_map::at when model metadata is inconsistent.
+            X = self.preprocess_symptoms(symptoms)
+
             # Predict probabilities
             probabilities = self.model.predict(X)[0]
         except Exception as e:
@@ -133,7 +138,7 @@ class SymptomCheckerService:
                 "confidence": round(confidence * 100, 2),
                 "severity": condition_details.get("severity", "unknown"),
                 "recommendations": condition_details.get("recommendations", []),
-                "matched_symptoms": [s for s in symptoms if s.lower().replace(' ', '_') 
+                "matched_symptoms": [s for s in symptoms if self._normalize_symptom(s)
                                    in condition_details.get("symptoms", [])]
             })
         
@@ -146,7 +151,8 @@ class SymptomCheckerService:
                 raise error
             return []
 
-        normalized_symptoms = {s.lower().replace(' ', '_') for s in symptoms}
+        normalized_symptoms = {self._normalize_symptom(s) for s in symptoms}
+        normalized_symptoms.discard("")
         scored_conditions = []
 
         for condition, details in self.condition_info.items():
@@ -174,11 +180,18 @@ class SymptomCheckerService:
                 "recommendations": details.get("recommendations", []),
                 "matched_symptoms": [
                     symptom for symptom in symptoms
-                    if symptom.lower().replace(' ', '_') in matched
+                    if self._normalize_symptom(symptom) in matched
                 ]
             })
 
         return predictions
+
+    @staticmethod
+    def _normalize_symptom(symptom: str) -> str:
+        """Normalize user-entered symptom names to the model feature format."""
+        if symptom is None:
+            return ""
+        return str(symptom).strip().lower().replace(" ", "_").replace("-", "_")
     
     def get_all_symptoms(self) -> List[str]:
         """Get list of all recognized symptoms"""
@@ -205,7 +218,7 @@ class SymptomCheckerService:
         if self.model is None:
             self.load_model()
         
-        normalized_input = [s.lower().replace(' ', '_') for s in symptoms]
+        normalized_input = [self._normalize_symptom(s) for s in symptoms]
         
         valid = []
         unknown = []
