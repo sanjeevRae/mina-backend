@@ -27,8 +27,7 @@ MEDICAL_DISCLAIMER = "This is an AI-based suggestion and not a medical diagnosis
 
 @router.post("/chat", response_model=SymptomChatResponse)
 async def chat_with_symptom_checker(
-    chat_input: SymptomChatInput,
-    current_user: User = Depends(get_current_user)
+    chat_input: SymptomChatInput
 ):
     """
     Lightweight rule-based chat for greetings, help, and natural symptom text.
@@ -56,8 +55,7 @@ async def chat_with_symptom_checker(
 
 @router.post("/analyze", response_model=SymptomCheckResult)
 async def analyze_symptoms(
-    symptom_input: SymptomInput,
-    current_user: User = Depends(get_current_user)
+    symptom_input: SymptomInput
 ):
     """
     Analyze symptoms and predict possible conditions

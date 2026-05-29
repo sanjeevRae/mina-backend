@@ -20,7 +20,6 @@ async def test_analyze_routes_greeting_as_clean_chat(monkeypatch):
 
     result = await symptom_checker.analyze_symptoms(
         SymptomInput(symptoms=["hello"]),
-        current_user=object(),
     )
 
     assert result.intent == "greeting"
