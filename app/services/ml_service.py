@@ -35,29 +35,27 @@ class SymptomCheckerService:
         self.symptoms_list = None
         self.condition_info = None
         self.metadata = None
+        self.model_load_error = None
         self._initialized = True
         
     def load_model(self, model_dir: str = "models/symptom_checker"):
         """Load model and metadata (lazy loading)"""
-        if self.model is not None:
+        if self.model is not None or (self.condition_info is not None and self.model_load_error is not None):
             return  # Already loaded
             
         model_path = Path(model_dir)
         
         try:
-            # Load LightGBM model
+            metadata_file = model_path / "metadata.json"
+            label_encoder_file = model_path / "label_encoder.pkl"
             model_file = model_path / "lightgbm_model.txt"
-            if not model_file.exists():
-                logger.warning(f"Model file not found: {model_file}. Auto-training model...")
+
+            if not all(path.exists() for path in [metadata_file, label_encoder_file, model_file]):
+                logger.warning(f"Symptom checker files missing in {model_path}. Auto-training model...")
                 self._auto_train_model()
-                # Retry loading after training
-                if not model_file.exists():
-                    raise FileNotFoundError(f"Model file not found after training: {model_file}")
-            
-            self.model = lgb.Booster(model_file=str(model_file))
             
             # Load metadata
-            with open(model_path / "metadata.json", 'r') as f:
+            with open(metadata_file, 'r') as f:
                 self.metadata = json.load(f)
             
             self.symptoms_list = self.metadata.get('symptoms_list') or []
@@ -67,11 +65,20 @@ class SymptomCheckerService:
                 raise ValueError("Symptom checker metadata is missing symptoms_list")
             
             # Load label encoder
-            self.label_encoder = joblib.load(model_path / "label_encoder.pkl")
+            self.label_encoder = joblib.load(label_encoder_file)
+
+            try:
+                self.model = lgb.Booster(model_file=str(model_file))
+                self.model_load_error = None
+            except Exception as e:
+                self.model = None
+                self.model_load_error = e
+                logger.exception("Failed to load LightGBM symptom model; rule-based fallback will be used")
             
-            logger.info(f"✅ Symptom checker model loaded successfully")
+            logger.info("Symptom checker metadata loaded successfully")
             logger.info(f"   - Features: {len(self.symptoms_list)}")
             logger.info(f"   - Conditions: {len(self.condition_info)}")
+            logger.info(f"   - LightGBM model loaded: {self.model is not None}")
             
         except Exception as e:
             logger.error(f"Failed to load symptom checker model: {e}")
@@ -80,7 +87,7 @@ class SymptomCheckerService:
     def preprocess_symptoms(self, symptoms: List[str]) -> np.ndarray:
         """Convert symptom list to feature vector"""
         # Ensure model is loaded
-        if self.model is None:
+        if self.symptoms_list is None:
             self.load_model()
         
         # Create feature vector
@@ -107,8 +114,11 @@ class SymptomCheckerService:
             List of predictions with conditions, confidence, and recommendations
         """
         # Ensure model is loaded
-        if self.model is None:
+        if self.symptoms_list is None:
             self.load_model()
+
+        if self.model is None:
+            return self._fallback_predict(symptoms, top_k=top_k, error=self.model_load_error)
         
         try:
             # Preprocess and predict probabilities. Keep both operations in the

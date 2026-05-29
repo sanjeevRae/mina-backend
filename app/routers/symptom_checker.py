@@ -176,6 +176,8 @@ async def symptom_checker_health():
         return {
             "status": "healthy",
             "model_loaded": symptom_checker_service.model is not None,
+            "fallback_mode": symptom_checker_service.model is None,
+            "model_error": str(symptom_checker_service.model_load_error) if symptom_checker_service.model_load_error else None,
             "num_symptoms": len(symptom_checker_service.symptoms_list) if symptom_checker_service.symptoms_list else 0,
             "num_conditions": len(symptom_checker_service.condition_info) if symptom_checker_service.condition_info else 0,
             "message": "Symptom checker is ready"
