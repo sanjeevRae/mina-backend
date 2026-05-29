@@ -69,9 +69,14 @@ async def analyze_symptoms(
         )
         
         if not valid_symptoms:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="No recognized symptoms provided. Use /symptom-checker/symptoms to see available symptoms."
+            chat_result = symptom_checker_service.chat(" ".join(symptom_input.symptoms))
+            return SymptomCheckResult(
+                predictions=[],
+                valid_symptoms=[],
+                unknown_symptoms=unknown_symptoms,
+                intent=chat_result.get("intent"),
+                message=chat_result.get("response"),
+                suggestions=chat_result.get("suggestions", [])
             )
         
         # Get predictions

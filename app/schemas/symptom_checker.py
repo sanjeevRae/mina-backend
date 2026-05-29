@@ -56,6 +56,9 @@ class SymptomCheckResult(BaseModel):
     predictions: List[ConditionPrediction] = Field(..., description="Top condition predictions")
     valid_symptoms: List[str] = Field(..., description="Recognized symptoms from input")
     unknown_symptoms: List[str] = Field(default=[], description="Unrecognized symptoms")
+    intent: Optional[str] = Field(default=None, description="Detected conversational intent when no symptoms are recognized")
+    message: Optional[str] = Field(default=None, description="Friendly guidance message when analysis cannot run")
+    suggestions: List[str] = Field(default=[], description="Suggested next actions")
     analyzed_at: datetime = Field(default_factory=datetime.utcnow, description="Analysis timestamp")
     disclaimer: str = Field(
         default="This is an AI-based suggestion and not a medical diagnosis. Always consult a healthcare professional for proper medical advice.",
