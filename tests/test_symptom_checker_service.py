@@ -115,7 +115,52 @@ def test_chat_greeting_does_not_report_greeting_as_unknown_term():
         result = service.chat("hello")
 
         assert result["intent"] == "greeting"
+        assert result["response_type"] == "chat"
+        assert result["should_show_medical_analysis"] is False
         assert result["unknown_terms"] == []
+    finally:
+        (
+            service.model,
+            service.symptoms_list,
+            service.condition_info,
+            service.metadata,
+            service.label_encoder,
+            service.model_load_error,
+        ) = original_state
+
+
+def test_chat_with_greeting_and_symptom_routes_to_symptom_report():
+    service = SymptomCheckerService()
+    original_state = (
+        service.model,
+        service.symptoms_list,
+        service.condition_info,
+        service.metadata,
+        service.label_encoder,
+        service.model_load_error,
+    )
+
+    try:
+        service.model = None
+        service.symptoms_list = ["fever", "cough"]
+        service.condition_info = {
+            "Common Cold": {
+                "symptoms": ["fever", "cough"],
+                "severity": "mild",
+                "recommendations": ["Rest and drink fluids"],
+            }
+        }
+        service.metadata = {"symptoms_list": service.symptoms_list}
+        service.label_encoder = None
+        service.model_load_error = None
+
+        result = service.chat("hello, I have fever and cough")
+
+        assert result["intent"] == "symptom_report"
+        assert result["response_type"] == "medical_analysis"
+        assert result["should_show_medical_analysis"] is True
+        assert result["extracted_symptoms"] == ["fever", "cough"]
+        assert result["predictions"]
     finally:
         (
             service.model,

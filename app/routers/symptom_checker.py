@@ -3,7 +3,6 @@ Symptom Checker API Router
 AI-powered symptom analysis endpoints
 """
 from fastapi import APIRouter, HTTPException, status, Depends
-from typing import List
 import logging
 
 from app.schemas.symptom_checker import (
@@ -23,26 +22,7 @@ from app.models.user import User
 router = APIRouter(prefix="/symptom-checker", tags=["AI Symptom Checker"])
 logger = logging.getLogger(__name__)
 
-
-def _conversation_prediction(chat_result: dict) -> ConditionPrediction:
-    """Adapt non-medical chat intents to the existing frontend prediction UI."""
-    intent = chat_result.get("intent") or "conversation"
-    title_map = {
-        "greeting": "Symptom Checker Assistant",
-        "help": "How To Use Symptom Checker",
-        "thanks": "Symptom Checker Assistant",
-        "out_of_scope": "Symptom Checker Guidance",
-        "unknown": "Symptom Checker Guidance",
-        "emergency_guidance": "Emergency Guidance"
-    }
-    severity = "serious" if intent == "emergency_guidance" else "mild"
-    return ConditionPrediction(
-        condition=title_map.get(intent, "Symptom Checker Assistant"),
-        confidence=100.0,
-        severity=severity,
-        recommendations=[chat_result.get("response", "Tell me your symptoms and I will try to help.")],
-        matched_symptoms=[]
-    )
+MEDICAL_DISCLAIMER = "This is an AI-based suggestion and not a medical diagnosis. Always consult a healthcare professional for proper medical advice."
 
 
 @router.post("/chat", response_model=SymptomChatResponse)
@@ -88,9 +68,11 @@ async def analyze_symptoms(
 
         if chat_result.get("intent") != "symptom_report":
             return SymptomCheckResult(
-                predictions=[_conversation_prediction(chat_result)],
+                predictions=[],
                 valid_symptoms=chat_result.get("extracted_symptoms", []),
                 unknown_symptoms=chat_result.get("unknown_terms", []),
+                response_type=chat_result.get("response_type", "chat"),
+                should_show_medical_analysis=chat_result.get("should_show_medical_analysis", False),
                 intent=chat_result.get("intent"),
                 message=chat_result.get("response"),
                 suggestions=chat_result.get("suggestions", [])
@@ -104,9 +86,12 @@ async def analyze_symptoms(
                 ],
                 valid_symptoms=chat_result.get("extracted_symptoms", []),
                 unknown_symptoms=chat_result.get("unknown_terms", []),
+                response_type="medical_analysis",
+                should_show_medical_analysis=True,
                 intent=chat_result.get("intent"),
                 message=chat_result.get("response"),
-                suggestions=chat_result.get("suggestions", [])
+                suggestions=chat_result.get("suggestions", []),
+                disclaimer=MEDICAL_DISCLAIMER
             )
 
         # Validate symptoms
@@ -117,9 +102,11 @@ async def analyze_symptoms(
         if not valid_symptoms:
             chat_result = symptom_checker_service.chat(" ".join(symptom_input.symptoms))
             return SymptomCheckResult(
-                predictions=[_conversation_prediction(chat_result)],
+                predictions=[],
                 valid_symptoms=[],
                 unknown_symptoms=unknown_symptoms,
+                response_type=chat_result.get("response_type", "chat"),
+                should_show_medical_analysis=chat_result.get("should_show_medical_analysis", False),
                 intent=chat_result.get("intent"),
                 message=chat_result.get("response"),
                 suggestions=chat_result.get("suggestions", [])
@@ -134,7 +121,11 @@ async def analyze_symptoms(
         return SymptomCheckResult(
             predictions=prediction_models,
             valid_symptoms=valid_symptoms,
-            unknown_symptoms=unknown_symptoms
+            unknown_symptoms=unknown_symptoms,
+            response_type="medical_analysis",
+            should_show_medical_analysis=True,
+            intent="symptom_report",
+            disclaimer=MEDICAL_DISCLAIMER
         )
         
     except HTTPException:

@@ -184,19 +184,43 @@ SYMPTOM_ALIASES = {
 
 CHAT_GREETINGS = {
     "hi", "hello", "hey", "namaste", "good morning", "good afternoon",
-    "good evening", "help me", "can you help me"
+    "good evening"
 }
 
 CHAT_HELP_TERMS = {
     "help", "how to use", "how do i use", "what can you do", "guide",
-    "instructions", "usage", "symptom checker", "how it works"
+    "instructions", "usage", "symptom checker", "how it works",
+    "how can you help", "can you help", "help me", "what should i type",
+    "examples"
 }
 
 CHAT_THANKS = {"thanks", "thank you", "thx", "ok thanks", "okay thanks"}
 
+CHAT_IDENTITY_TERMS = {
+    "who are you", "what are you", "are you ai", "are you a doctor",
+    "what is this"
+}
+
+CHAT_SMALL_TALK_TERMS = {
+    "how are you", "how r u", "are you there", "good night", "nice",
+    "okay", "ok", "yes", "no"
+}
+
+CHAT_ASSISTANCE_TERMS = {
+    "book appointment", "appointment", "doctor", "prescription", "medicine",
+    "medical report", "lab report", "upload report", "contact doctor",
+    "consult doctor"
+}
+
 OUT_OF_SCOPE_TERMS = {
     "weather", "movie", "music", "joke", "football", "cricket", "stock",
     "coding", "homework", "travel", "restaurant", "shopping"
+}
+
+SYMPTOM_REPORT_TERMS = {
+    "i have", "i am having", "im having", "i feel", "feeling", "suffering",
+    "pain", "ache", "hurts", "hurt", "fever", "cough", "rash", "vomit",
+    "dizzy", "nausea", "diarrhea", "bleeding", "swelling", "weakness"
 }
 
 STOP_TERMS = {
@@ -205,7 +229,7 @@ STOP_TERMS = {
     "for", "since", "from", "please", "what", "should", "do", "can", "you",
     "but", "also", "very", "really", "today", "yesterday", "days", "day",
     "week", "weeks", "month", "months",
-    "this"
+    "this", "need", "want"
 }
 
 NEGATION_TERMS = {
@@ -479,10 +503,13 @@ class SymptomCheckerService:
         text = self._normalize_chat_text(message)
         extracted_symptoms, unknown_terms = self.extract_symptoms_from_text(message)
         context = self._extract_message_context(text)
+        route = self._classify_message(text, extracted_symptoms)
 
-        if self._contains_any(text, EMERGENCY_CHAT_TERMS) and not extracted_symptoms:
+        if route == "emergency_guidance" and not extracted_symptoms:
             return {
                 "intent": "emergency_guidance",
+                "response_type": "emergency_guidance",
+                "should_show_medical_analysis": False,
                 "response": "That may be urgent. If there is severe chest pain, stroke signs, trouble breathing, seizure, fainting, or heavy bleeding, seek emergency medical help now.",
                 "extracted_symptoms": [],
                 "unknown_terms": unknown_terms,
@@ -494,11 +521,13 @@ class SymptomCheckerService:
                 ]
             }
 
-        if self._contains_any(text, CHAT_THANKS):
+        if route == "thanks":
             return {
                 "intent": "thanks",
-                "response": "You're welcome. Keep monitoring how you feel, and seek medical care if symptoms become severe or worrying.",
-                "extracted_symptoms": extracted_symptoms,
+                "response_type": "chat",
+                "should_show_medical_analysis": False,
+                "response": "You're welcome. Tell me anytime if you want to check symptoms or understand how this works.",
+                "extracted_symptoms": [],
                 "unknown_terms": unknown_terms,
                 "predictions": [],
                 "suggestions": [
@@ -507,24 +536,27 @@ class SymptomCheckerService:
                 ]
             }
 
-        if self._contains_any(text, CHAT_GREETINGS) and not extracted_symptoms:
+        if route == "greeting":
             return {
                 "intent": "greeting",
-                "response": "Hi, I can help you check possible conditions from symptoms. Tell me what you are feeling, like: I have fever, cough, headache, and sore throat.",
+                "response_type": "chat",
+                "should_show_medical_analysis": False,
+                "response": "Hi. Tell me your symptoms in simple words, or ask how to use the symptom checker.",
                 "extracted_symptoms": [],
                 "unknown_terms": unknown_terms,
                 "predictions": [],
                 "suggestions": [
-                    "Describe 2 to 6 symptoms",
-                    "Mention emergency symptoms immediately",
-                    "Use /symptom-checker/symptoms to see supported symptoms"
+                    "Example: I have fever and cough",
+                    "Example: How do I use this?"
                 ]
             }
 
-        if self._contains_any(text, CHAT_HELP_TERMS) and not extracted_symptoms:
+        if route == "help":
             return {
                 "intent": "help",
-                "response": "Send your symptoms in simple language. I will extract the symptoms I recognize, check possible conditions, and share basic next steps. This is not a diagnosis.",
+                "response_type": "chat",
+                "should_show_medical_analysis": False,
+                "response": "Send a short sentence with what you feel. I will separate normal chat from symptom reports, recognize known symptoms, and only show possible conditions when symptoms are present.",
                 "extracted_symptoms": [],
                 "unknown_terms": unknown_terms,
                 "predictions": [],
@@ -535,7 +567,53 @@ class SymptomCheckerService:
                 ]
             }
 
-        if extracted_symptoms:
+        if route == "identity":
+            return {
+                "intent": "identity",
+                "response_type": "chat",
+                "should_show_medical_analysis": False,
+                "response": "I am Mina's lightweight symptom assistant. I can greet you, explain how to use the checker, and analyze symptom descriptions using rule-based NLP plus the local symptom model.",
+                "extracted_symptoms": [],
+                "unknown_terms": unknown_terms,
+                "predictions": [],
+                "suggestions": [
+                    "Ask: how to use",
+                    "Describe symptoms in one sentence"
+                ]
+            }
+
+        if route == "small_talk":
+            return {
+                "intent": "small_talk",
+                "response_type": "chat",
+                "should_show_medical_analysis": False,
+                "response": "I am here and ready to help. You can tell me symptoms, ask how to use the checker, or ask for basic guidance.",
+                "extracted_symptoms": [],
+                "unknown_terms": unknown_terms,
+                "predictions": [],
+                "suggestions": [
+                    "Ask: how to use",
+                    "Example: I have headache and nausea"
+                ]
+            }
+
+        if route == "assistance":
+            return {
+                "intent": "assistance",
+                "response_type": "chat",
+                "should_show_medical_analysis": False,
+                "response": "I can guide you with the symptom checker and basic next steps. For appointments, prescriptions, or reports, use the related section in the app or contact your healthcare provider.",
+                "extracted_symptoms": [],
+                "unknown_terms": unknown_terms,
+                "predictions": [],
+                "suggestions": [
+                    "Describe symptoms if you want analysis",
+                    "Use appointments for doctor consultation",
+                    "Seek urgent care for emergency symptoms"
+                ]
+            }
+
+        if route == "symptom_report":
             predictions = self.predict(extracted_symptoms, top_k=3)
             if predictions:
                 top = predictions[0]
@@ -563,6 +641,8 @@ class SymptomCheckerService:
 
             return {
                 "intent": "symptom_report",
+                "response_type": "medical_analysis",
+                "should_show_medical_analysis": True,
                 "response": response,
                 "extracted_symptoms": extracted_symptoms,
                 "unknown_terms": unknown_terms,
@@ -575,9 +655,11 @@ class SymptomCheckerService:
                 ]
             }
 
-        if self._contains_any(text, OUT_OF_SCOPE_TERMS):
+        if route == "out_of_scope":
             return {
                 "intent": "out_of_scope",
+                "response_type": "chat",
+                "should_show_medical_analysis": False,
                 "response": "I am focused on symptom checking and basic wellness guidance. Tell me your symptoms and I will try to help safely.",
                 "extracted_symptoms": [],
                 "unknown_terms": unknown_terms,
@@ -590,7 +672,9 @@ class SymptomCheckerService:
 
         return {
             "intent": "unknown",
-            "response": "I did not recognize symptoms in that message. Please describe what you feel using simple words, for example: fever, cough, headache, stomach pain, dizziness, or rash.",
+            "response_type": "chat",
+            "should_show_medical_analysis": False,
+            "response": "I did not recognize symptoms in that message. You can chat with me or describe symptoms like fever, cough, stomach pain, dizziness, or rash.",
             "extracted_symptoms": [],
             "unknown_terms": unknown_terms,
             "predictions": [],
@@ -754,7 +838,15 @@ class SymptomCheckerService:
     @staticmethod
     def _unknown_terms_from_text(text: str, matched_spans: List[Tuple[int, int]]) -> List[str]:
         ignored_words = set(STOP_TERMS) | set(NEGATION_TERMS)
-        for terms in (CHAT_GREETINGS, CHAT_HELP_TERMS, CHAT_THANKS, OUT_OF_SCOPE_TERMS):
+        for terms in (
+            CHAT_GREETINGS,
+            CHAT_HELP_TERMS,
+            CHAT_THANKS,
+            CHAT_IDENTITY_TERMS,
+            CHAT_SMALL_TALK_TERMS,
+            CHAT_ASSISTANCE_TERMS,
+            OUT_OF_SCOPE_TERMS,
+        ):
             for term in terms:
                 ignored_words.update(term.split())
 
@@ -788,6 +880,44 @@ class SymptomCheckerService:
                 for term in EMERGENCY_CHAT_TERMS
             )
         }
+
+    def _classify_message(self, text: str, extracted_symptoms: List[str]) -> str:
+        """Route messages before rendering so chat never looks like a diagnosis."""
+        if not text:
+            return "unknown"
+
+        has_emergency = self._contains_any(text, EMERGENCY_CHAT_TERMS)
+        if has_emergency and not extracted_symptoms:
+            return "emergency_guidance"
+
+        if extracted_symptoms:
+            return "symptom_report"
+
+        if self._contains_any(text, CHAT_THANKS):
+            return "thanks"
+
+        if self._contains_any(text, CHAT_GREETINGS):
+            return "greeting"
+
+        if self._contains_any(text, CHAT_HELP_TERMS):
+            return "help"
+
+        if self._contains_any(text, CHAT_IDENTITY_TERMS):
+            return "identity"
+
+        if self._contains_any(text, CHAT_SMALL_TALK_TERMS):
+            return "small_talk"
+
+        if self._contains_any(text, CHAT_ASSISTANCE_TERMS):
+            return "assistance"
+
+        if self._contains_any(text, OUT_OF_SCOPE_TERMS):
+            return "out_of_scope"
+
+        if self._contains_any(text, SYMPTOM_REPORT_TERMS):
+            return "unknown"
+
+        return "unknown"
 
     @staticmethod
     def _contains_any(text: str, terms) -> bool:

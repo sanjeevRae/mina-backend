@@ -5,7 +5,7 @@ from app.schemas.symptom_checker import SymptomInput
 
 
 @pytest.mark.asyncio
-async def test_analyze_returns_friendly_prediction_for_greeting(monkeypatch):
+async def test_analyze_routes_greeting_as_clean_chat(monkeypatch):
     def fake_chat(_message):
         return {
             "intent": "greeting",
@@ -24,11 +24,9 @@ async def test_analyze_returns_friendly_prediction_for_greeting(monkeypatch):
     )
 
     assert result.intent == "greeting"
+    assert result.response_type == "chat"
+    assert result.should_show_medical_analysis is False
     assert result.message == "Hi, I can help you check possible conditions from symptoms."
-    assert result.predictions
-    assert result.predictions[0].condition == "Symptom Checker Assistant"
-    assert result.predictions[0].recommendations == [
-        "Hi, I can help you check possible conditions from symptoms."
-    ]
+    assert result.predictions == []
+    assert result.disclaimer is None
     assert result.suggestions == ["Describe 2 to 6 symptoms"]
-

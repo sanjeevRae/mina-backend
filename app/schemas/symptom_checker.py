@@ -56,12 +56,14 @@ class SymptomCheckResult(BaseModel):
     predictions: List[ConditionPrediction] = Field(..., description="Top condition predictions")
     valid_symptoms: List[str] = Field(..., description="Recognized symptoms from input")
     unknown_symptoms: List[str] = Field(default=[], description="Unrecognized symptoms")
+    response_type: str = Field(default="medical_analysis", description="Frontend rendering mode: chat, medical_analysis, or emergency_guidance")
+    should_show_medical_analysis: bool = Field(default=True, description="Whether the frontend should show condition analysis UI")
     intent: Optional[str] = Field(default=None, description="Detected conversational intent when no symptoms are recognized")
     message: Optional[str] = Field(default=None, description="Friendly guidance message when analysis cannot run")
     suggestions: List[str] = Field(default=[], description="Suggested next actions")
     analyzed_at: datetime = Field(default_factory=datetime.utcnow, description="Analysis timestamp")
-    disclaimer: str = Field(
-        default="This is an AI-based suggestion and not a medical diagnosis. Always consult a healthcare professional for proper medical advice.",
+    disclaimer: Optional[str] = Field(
+        default=None,
         description="Medical disclaimer"
     )
 
@@ -69,6 +71,8 @@ class SymptomCheckResult(BaseModel):
 class SymptomChatResponse(BaseModel):
     """Lightweight conversational response for symptom checker"""
     intent: str = Field(..., description="Detected intent such as greeting, help, symptom_report, or out_of_scope")
+    response_type: str = Field(default="chat", description="Frontend rendering mode: chat, medical_analysis, or emergency_guidance")
+    should_show_medical_analysis: bool = Field(default=False, description="Whether the frontend should show condition analysis UI")
     response: str = Field(..., description="Friendly response text")
     extracted_symptoms: List[str] = Field(default=[], description="Symptoms detected from the message")
     unknown_terms: List[str] = Field(default=[], description="Possible health terms that were not recognized")
