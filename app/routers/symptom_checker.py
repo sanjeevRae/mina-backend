@@ -63,6 +63,34 @@ async def analyze_symptoms(
     Always consult healthcare professionals for proper medical advice.
     """
     try:
+        chat_result = symptom_checker_service.chat(" ".join(symptom_input.symptoms))
+
+        if chat_result.get("intent") != "symptom_report":
+            return SymptomCheckResult(
+                predictions=[
+                    ConditionPrediction(**prediction)
+                    for prediction in chat_result.get("predictions", [])
+                ],
+                valid_symptoms=chat_result.get("extracted_symptoms", []),
+                unknown_symptoms=chat_result.get("unknown_terms", []),
+                intent=chat_result.get("intent"),
+                message=chat_result.get("response"),
+                suggestions=chat_result.get("suggestions", [])
+            )
+
+        if chat_result.get("extracted_symptoms"):
+            return SymptomCheckResult(
+                predictions=[
+                    ConditionPrediction(**prediction)
+                    for prediction in chat_result.get("predictions", [])
+                ],
+                valid_symptoms=chat_result.get("extracted_symptoms", []),
+                unknown_symptoms=chat_result.get("unknown_terms", []),
+                intent=chat_result.get("intent"),
+                message=chat_result.get("response"),
+                suggestions=chat_result.get("suggestions", [])
+            )
+
         # Validate symptoms
         valid_symptoms, unknown_symptoms = symptom_checker_service.validate_symptoms(
             symptom_input.symptoms
