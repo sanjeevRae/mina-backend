@@ -3,6 +3,7 @@ Symptom Checker API Router
 AI-powered symptom analysis endpoints
 """
 from fastapi import APIRouter, HTTPException, status, Depends
+from fastapi import Request
 import logging
 
 from app.schemas.symptom_checker import (
@@ -23,6 +24,57 @@ router = APIRouter(prefix="/symptom-checker", tags=["AI Symptom Checker"])
 logger = logging.getLogger(__name__)
 
 MEDICAL_DISCLAIMER = "This is an AI-based suggestion and not a medical diagnosis. Always consult a healthcare professional for proper medical advice."
+
+
+def _needs_legacy_mobile_prediction(request: Request | None) -> bool:
+    """Old mobile clients fall back to offline mode when predictions is empty."""
+    if request is None:
+        return False
+
+    user_agent = request.headers.get("user-agent", "").lower()
+    explicit_legacy = request.headers.get("x-legacy-symptom-client", "").lower()
+    mobile_markers = (
+        "android",
+        "iphone",
+        "ipad",
+        "okhttp",
+        "dart",
+        "flutter",
+        "reactnative",
+        "expo",
+        "cfnetwork",
+    )
+
+    return explicit_legacy in {"1", "true", "yes"} or any(
+        marker in user_agent for marker in mobile_markers
+    )
+
+
+def _conversation_prediction(chat_result: dict) -> ConditionPrediction:
+    """Compatibility object for old clients that render only predictions."""
+    intent = chat_result.get("intent") or "chat"
+    title_map = {
+        "greeting": "Assistant Response",
+        "help": "How To Use",
+        "thanks": "Assistant Response",
+        "identity": "Assistant Response",
+        "small_talk": "Assistant Response",
+        "assistance": "App Guidance",
+        "out_of_scope": "App Guidance",
+        "unknown": "App Guidance",
+        "emergency_guidance": "Emergency Guidance",
+    }
+    severity = "serious" if intent == "emergency_guidance" else "info"
+    return ConditionPrediction(
+        condition=title_map.get(intent, "Assistant Response"),
+        confidence=100.0,
+        severity=severity,
+        recommendations=[
+            chat_result.get("response")
+            or "Tell me your symptoms or ask how to use the symptom checker."
+        ],
+        matched_symptoms=[],
+    )
 
 
 @router.post("/chat", response_model=SymptomChatResponse)
@@ -55,7 +107,8 @@ async def chat_with_symptom_checker(
 
 @router.post("/analyze", response_model=SymptomCheckResult)
 async def analyze_symptoms(
-    symptom_input: SymptomInput
+    symptom_input: SymptomInput,
+    request: Request = None
 ):
     """
     Analyze symptoms and predict possible conditions
@@ -67,8 +120,13 @@ async def analyze_symptoms(
         chat_result = symptom_checker_service.chat(" ".join(symptom_input.symptoms))
 
         if chat_result.get("intent") != "symptom_report":
+            legacy_predictions = (
+                [_conversation_prediction(chat_result)]
+                if _needs_legacy_mobile_prediction(request)
+                else []
+            )
             return SymptomCheckResult(
-                predictions=[],
+                predictions=legacy_predictions,
                 valid_symptoms=chat_result.get("extracted_symptoms", []),
                 unknown_symptoms=chat_result.get("unknown_terms", []),
                 response_type=chat_result.get("response_type", "chat"),
@@ -105,8 +163,13 @@ async def analyze_symptoms(
         
         if not valid_symptoms:
             chat_result = symptom_checker_service.chat(" ".join(symptom_input.symptoms))
+            legacy_predictions = (
+                [_conversation_prediction(chat_result)]
+                if _needs_legacy_mobile_prediction(request)
+                else []
+            )
             return SymptomCheckResult(
-                predictions=[],
+                predictions=legacy_predictions,
                 valid_symptoms=[],
                 unknown_symptoms=unknown_symptoms,
                 response_type=chat_result.get("response_type", "chat"),
