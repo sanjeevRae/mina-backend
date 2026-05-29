@@ -91,3 +91,37 @@ def test_load_model_keeps_metadata_when_lightgbm_raises_unordered_map_at(monkeyp
             service.label_encoder,
             service.model_load_error,
         ) = original_state
+
+
+def test_chat_greeting_does_not_report_greeting_as_unknown_term():
+    service = SymptomCheckerService()
+    original_state = (
+        service.model,
+        service.symptoms_list,
+        service.condition_info,
+        service.metadata,
+        service.label_encoder,
+        service.model_load_error,
+    )
+
+    try:
+        service.model = None
+        service.symptoms_list = ["fever", "cough"]
+        service.condition_info = {}
+        service.metadata = {"symptoms_list": service.symptoms_list}
+        service.label_encoder = None
+        service.model_load_error = None
+
+        result = service.chat("hello")
+
+        assert result["intent"] == "greeting"
+        assert result["unknown_terms"] == []
+    finally:
+        (
+            service.model,
+            service.symptoms_list,
+            service.condition_info,
+            service.metadata,
+            service.label_encoder,
+            service.model_load_error,
+        ) = original_state

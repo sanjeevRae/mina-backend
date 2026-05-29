@@ -88,7 +88,7 @@ async def analyze_symptoms(
 
         if chat_result.get("intent") != "symptom_report":
             return SymptomCheckResult(
-                predictions=[],
+                predictions=[_conversation_prediction(chat_result)],
                 valid_symptoms=chat_result.get("extracted_symptoms", []),
                 unknown_symptoms=chat_result.get("unknown_terms", []),
                 intent=chat_result.get("intent"),
@@ -117,7 +117,7 @@ async def analyze_symptoms(
         if not valid_symptoms:
             chat_result = symptom_checker_service.chat(" ".join(symptom_input.symptoms))
             return SymptomCheckResult(
-                predictions=[],
+                predictions=[_conversation_prediction(chat_result)],
                 valid_symptoms=[],
                 unknown_symptoms=unknown_symptoms,
                 intent=chat_result.get("intent"),

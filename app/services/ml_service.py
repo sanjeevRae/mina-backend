@@ -753,6 +753,11 @@ class SymptomCheckerService:
 
     @staticmethod
     def _unknown_terms_from_text(text: str, matched_spans: List[Tuple[int, int]]) -> List[str]:
+        ignored_words = set(STOP_TERMS) | set(NEGATION_TERMS)
+        for terms in (CHAT_GREETINGS, CHAT_HELP_TERMS, CHAT_THANKS, OUT_OF_SCOPE_TERMS):
+            for term in terms:
+                ignored_words.update(term.split())
+
         remaining = list(text)
         for start, end in matched_spans:
             for index in range(start, end):
@@ -760,7 +765,7 @@ class SymptomCheckerService:
                     remaining[index] = " "
         words = [
             word for word in re.findall(r"[a-z0-9]+", "".join(remaining))
-            if len(word) > 3 and word not in STOP_TERMS and word not in NEGATION_TERMS
+            if len(word) > 3 and word not in ignored_words
         ]
         return words[:5]
 
