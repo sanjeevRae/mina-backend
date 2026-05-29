@@ -1091,7 +1091,760 @@ CONDITION_PATTERNS = {
     }
 }
 
-def generate_training_data(num_samples: int = 5000) -> List[Dict]:
+EXTRA_CONDITION_PATTERNS = {
+    "Malaria": {
+        "symptoms": ["fever", "chills", "rigors", "sweating", "headache", "muscle_pain", "fatigue", "nausea", "vomiting"],
+        "severity": "serious",
+        "recommendations": [
+            "Seek medical evaluation promptly",
+            "Blood testing is required for diagnosis",
+            "Antimalarial treatment may be needed",
+            "Stay hydrated",
+            "Seek urgent care for confusion, seizures, or severe weakness"
+        ]
+    },
+    "Dengue Fever": {
+        "symptoms": ["high_fever", "severe_headache", "eye_pain", "joint_pain", "muscle_pain", "rash", "nausea", "easy_bruising"],
+        "severity": "serious",
+        "recommendations": [
+            "Seek medical evaluation",
+            "Avoid aspirin and ibuprofen unless directed by a clinician",
+            "Drink fluids frequently",
+            "Monitor for bleeding or severe abdominal pain",
+            "Urgent care if dizziness, confusion, or persistent vomiting occurs"
+        ]
+    },
+    "Typhoid Fever": {
+        "symptoms": ["persistent_fever", "headache", "abdominal_pain", "constipation", "diarrhea", "fatigue", "loss_of_appetite", "rash"],
+        "severity": "serious",
+        "recommendations": [
+            "Medical evaluation and testing are needed",
+            "Antibiotics may be required",
+            "Maintain hydration",
+            "Use safe food and water precautions",
+            "Seek urgent care for severe abdominal pain or confusion"
+        ]
+    },
+    "Hepatitis A": {
+        "symptoms": ["fatigue", "nausea", "abdominal_pain", "loss_of_appetite", "dark_urine", "jaundice", "fever", "joint_pain"],
+        "severity": "moderate",
+        "recommendations": [
+            "Consult a healthcare provider",
+            "Rest and maintain hydration",
+            "Avoid alcohol",
+            "Practice careful hand hygiene",
+            "Discuss vaccination and exposure guidance"
+        ]
+    },
+    "Chickenpox": {
+        "symptoms": ["fever", "fatigue", "itching", "blisters", "rash", "loss_of_appetite", "headache"],
+        "severity": "moderate",
+        "recommendations": [
+            "Isolate until lesions crust over",
+            "Avoid scratching",
+            "Use soothing skin care as directed",
+            "Seek care for adults, pregnancy, or immune suppression",
+            "Monitor for skin infection"
+        ]
+    },
+    "Measles": {
+        "symptoms": ["high_fever", "cough", "runny_nose", "red_eyes", "rash", "sensitivity_to_light", "fatigue"],
+        "severity": "serious",
+        "recommendations": [
+            "Contact a healthcare provider before visiting a clinic",
+            "Isolate to prevent spread",
+            "Supportive care and hydration",
+            "Check vaccination status",
+            "Urgent care for breathing difficulty or confusion"
+        ]
+    },
+    "Mumps": {
+        "symptoms": ["fever", "headache", "muscle_pain", "fatigue", "loss_of_appetite", "swollen_salivary_glands", "jaw_pain"],
+        "severity": "moderate",
+        "recommendations": [
+            "Rest and hydrate",
+            "Use pain relief as directed",
+            "Avoid acidic foods if painful",
+            "Isolate to reduce spread",
+            "Seek care for testicular pain, severe headache, or stiff neck"
+        ]
+    },
+    "Strep Throat": {
+        "symptoms": ["sore_throat", "fever", "swollen_lymph_nodes", "difficulty_swallowing", "headache", "nausea", "red_tonsils"],
+        "severity": "moderate",
+        "recommendations": [
+            "Throat testing may be needed",
+            "Antibiotics may be prescribed",
+            "Gargle with warm salt water",
+            "Replace toothbrush after starting antibiotics",
+            "Seek care for breathing or swallowing difficulty"
+        ]
+    },
+    "Tonsillitis": {
+        "symptoms": ["sore_throat", "difficulty_swallowing", "fever", "bad_breath", "swollen_lymph_nodes", "hoarseness", "red_tonsils"],
+        "severity": "moderate",
+        "recommendations": [
+            "Rest and drink fluids",
+            "Use warm salt water gargles",
+            "Pain relief as directed",
+            "Medical review if recurrent or severe",
+            "Urgent care for drooling or breathing difficulty"
+        ]
+    },
+    "Conjunctivitis": {
+        "symptoms": ["eye_redness", "eye_discharge", "watery_eyes", "itching", "eye_pain", "blurred_vision", "sensitivity_to_light"],
+        "severity": "mild",
+        "recommendations": [
+            "Avoid touching or rubbing eyes",
+            "Wash hands frequently",
+            "Avoid sharing towels",
+            "Stop contact lenses until cleared",
+            "Seek care for pain, light sensitivity, or vision changes"
+        ]
+    },
+    "Dental Abscess": {
+        "symptoms": ["tooth_pain", "jaw_pain", "facial_swelling", "fever", "bad_breath", "sensitive_teeth", "difficulty_chewing"],
+        "severity": "serious",
+        "recommendations": [
+            "See a dentist urgently",
+            "Do not ignore facial swelling",
+            "Pain relief as directed",
+            "Antibiotics or drainage may be needed",
+            "Emergency care for trouble breathing or swallowing"
+        ]
+    },
+    "Gingivitis": {
+        "symptoms": ["bleeding_gums", "gum_swelling", "bad_breath", "sensitive_teeth", "gum_pain", "red_gums"],
+        "severity": "mild",
+        "recommendations": [
+            "Brush and floss gently every day",
+            "Schedule dental cleaning",
+            "Use dentist-recommended mouth rinse",
+            "Avoid tobacco",
+            "Seek dental care if bleeding persists"
+        ]
+    },
+    "Vitamin B12 Deficiency": {
+        "symptoms": ["fatigue", "weakness", "numbness", "tingling", "memory_loss", "dizziness", "pale_skin", "glossitis"],
+        "severity": "moderate",
+        "recommendations": [
+            "Ask a clinician about blood testing",
+            "Dietary review may help",
+            "Supplements or injections may be needed",
+            "Monitor nerve symptoms",
+            "Seek care for worsening weakness or confusion"
+        ]
+    },
+    "Vitamin D Deficiency": {
+        "symptoms": ["fatigue", "bone_pain", "muscle_weakness", "muscle_pain", "depression", "frequent_infections"],
+        "severity": "mild",
+        "recommendations": [
+            "Discuss vitamin D testing",
+            "Safe sunlight exposure may help",
+            "Use supplements only as directed",
+            "Include vitamin D rich foods",
+            "Evaluate persistent bone pain"
+        ]
+    },
+    "Dehydration": {
+        "symptoms": ["thirst", "dry_mouth", "dizziness", "dark_urine", "decreased_urine_output", "fatigue", "confusion"],
+        "severity": "moderate",
+        "recommendations": [
+            "Drink oral rehydration fluids",
+            "Rest in a cool place",
+            "Avoid alcohol",
+            "Monitor urination",
+            "Seek urgent care for confusion, fainting, or inability to keep fluids down"
+        ]
+    },
+    "Heat Exhaustion": {
+        "symptoms": ["excessive_sweating", "weakness", "dizziness", "nausea", "headache", "muscle_cramps", "rapid_heartbeat"],
+        "severity": "serious",
+        "recommendations": [
+            "Move to a cool place immediately",
+            "Drink cool fluids",
+            "Loosen clothing",
+            "Use cool compresses",
+            "Emergency care if confusion, fainting, or very high temperature occurs"
+        ]
+    },
+    "Hypoglycemia": {
+        "symptoms": ["sweating", "tremors", "excessive_hunger", "dizziness", "confusion", "palpitations", "weakness", "anxiety"],
+        "severity": "serious",
+        "recommendations": [
+            "Check blood glucose if possible",
+            "Take fast-acting carbohydrate if safe",
+            "Recheck symptoms after 15 minutes",
+            "Eat a snack or meal after recovery",
+            "Emergency care for seizure or unconsciousness"
+        ]
+    },
+    "Hyperglycemia": {
+        "symptoms": ["excessive_thirst", "frequent_urination", "fatigue", "blurred_vision", "dry_mouth", "weight_loss", "nausea"],
+        "severity": "serious",
+        "recommendations": [
+            "Check blood glucose if possible",
+            "Follow diabetes sick-day plan if prescribed",
+            "Drink water",
+            "Contact a healthcare provider",
+            "Urgent care for vomiting, confusion, or deep rapid breathing"
+        ]
+    },
+    "Panic Attack": {
+        "symptoms": ["panic_attacks", "palpitations", "chest_tightness", "shortness_of_breath", "tremors", "sweating", "dizziness", "fear_of_dying"],
+        "severity": "moderate",
+        "recommendations": [
+            "Use slow breathing techniques",
+            "Move to a calm environment",
+            "Limit caffeine and stimulants",
+            "Consider counseling or therapy",
+            "Seek emergency care for new or severe chest pain"
+        ]
+    },
+    "Post-Traumatic Stress Disorder": {
+        "symptoms": ["anxiety", "nightmares", "insomnia", "irritability", "social_withdrawal", "panic_attacks", "difficulty_concentrating", "hypervigilance"],
+        "severity": "moderate",
+        "recommendations": [
+            "Consider trauma-focused therapy",
+            "Maintain regular sleep routine",
+            "Use grounding techniques",
+            "Avoid alcohol or substance misuse",
+            "Seek urgent help for suicidal thoughts"
+        ]
+    },
+    "Cellulitis": {
+        "symptoms": ["skin_redness", "warm_skin", "swelling", "pain", "fever", "tenderness", "skin_lesions"],
+        "severity": "serious",
+        "recommendations": [
+            "Seek medical care promptly",
+            "Antibiotics may be needed",
+            "Elevate affected area",
+            "Mark spreading redness if advised",
+            "Emergency care for rapid spread or confusion"
+        ]
+    },
+    "Fungal Skin Infection": {
+        "symptoms": ["itching", "rash", "scaling", "skin_redness", "crusting", "skin_discoloration", "burning"],
+        "severity": "mild",
+        "recommendations": [
+            "Keep area clean and dry",
+            "Use antifungal treatment as directed",
+            "Avoid sharing towels",
+            "Wear breathable clothing",
+            "Seek care if spreading or recurrent"
+        ]
+    },
+    "Scabies": {
+        "symptoms": ["intense_itching", "rash", "papules", "burrows", "worse_at_night", "skin_lesions"],
+        "severity": "moderate",
+        "recommendations": [
+            "Medical diagnosis and prescription treatment are needed",
+            "Treat close contacts as directed",
+            "Wash bedding and clothing in hot water",
+            "Avoid skin contact until treated",
+            "Itching may persist after treatment"
+        ]
+    },
+    "Shingles": {
+        "symptoms": ["burning_pain", "tingling", "rash", "blisters", "skin_sensitivity", "fever", "headache"],
+        "severity": "moderate",
+        "recommendations": [
+            "Seek care early for antiviral treatment",
+            "Keep rash covered",
+            "Avoid contact with pregnant or immunocompromised people",
+            "Pain control may be needed",
+            "Urgent care for eye involvement"
+        ]
+    },
+    "Kidney Stones": {
+        "symptoms": ["severe_flank_pain", "blood_in_urine", "nausea", "vomiting", "painful_urination", "urinary_urgency", "groin_pain"],
+        "severity": "serious",
+        "recommendations": [
+            "Seek medical evaluation",
+            "Drink fluids if not vomiting",
+            "Pain control may be needed",
+            "Imaging may be required",
+            "Emergency care for fever, blocked urination, or uncontrolled pain"
+        ]
+    },
+    "Prostatitis": {
+        "symptoms": ["pelvic_pain", "painful_urination", "frequent_urination", "fever", "chills", "back_pain", "painful_ejaculation"],
+        "severity": "moderate",
+        "recommendations": [
+            "Medical evaluation is recommended",
+            "Antibiotics may be needed",
+            "Drink fluids",
+            "Avoid bladder irritants",
+            "Urgent care for high fever or urinary retention"
+        ]
+    },
+    "Pelvic Inflammatory Disease": {
+        "symptoms": ["pelvic_pain", "vaginal_discharge", "fever", "painful_intercourse", "vaginal_bleeding", "painful_urination", "lower_abdominal_pain"],
+        "severity": "serious",
+        "recommendations": [
+            "Seek medical care promptly",
+            "Antibiotics are usually required",
+            "Partners may need treatment",
+            "Avoid sex until treatment is complete",
+            "Emergency care for severe pain or fainting"
+        ]
+    },
+    "Ovarian Cyst": {
+        "symptoms": ["pelvic_pain", "bloating", "abdominal_pain", "painful_intercourse", "menstrual_irregularities", "nausea"],
+        "severity": "moderate",
+        "recommendations": [
+            "Schedule medical evaluation",
+            "Ultrasound may be needed",
+            "Track menstrual symptoms",
+            "Pain relief as directed",
+            "Emergency care for sudden severe pelvic pain"
+        ]
+    },
+    "Pregnancy": {
+        "symptoms": ["missed_period", "nausea", "breast_pain", "fatigue", "frequent_urination", "food_aversions", "mood_swings"],
+        "severity": "mild",
+        "recommendations": [
+            "Take a pregnancy test",
+            "Schedule prenatal care if positive",
+            "Start prenatal vitamins if appropriate",
+            "Avoid alcohol and smoking",
+            "Urgent care for heavy bleeding or severe abdominal pain"
+        ]
+    },
+    "Menopause": {
+        "symptoms": ["hot_flashes", "night_sweats", "menstrual_irregularities", "mood_swings", "difficulty_sleeping", "vaginal_dryness", "weight_gain"],
+        "severity": "mild",
+        "recommendations": [
+            "Discuss symptoms with a clinician",
+            "Maintain regular exercise",
+            "Use sleep hygiene strategies",
+            "Consider non-hormonal and hormonal options if appropriate",
+            "Keep up with preventive screening"
+        ]
+    },
+    "Hand Foot and Mouth Disease": {
+        "symptoms": ["fever", "mouth_sores", "rash", "blisters", "sore_throat", "loss_of_appetite", "fatigue"],
+        "severity": "mild",
+        "recommendations": [
+            "Encourage fluids",
+            "Use pain relief as directed",
+            "Avoid acidic foods",
+            "Practice hand hygiene",
+            "Seek care for dehydration or persistent fever"
+        ]
+    },
+    "Sepsis": {
+        "symptoms": ["fever", "chills", "rapid_heartbeat", "rapid_breathing", "confusion", "low_blood_pressure", "cold_skin", "decreased_urine_output"],
+        "severity": "emergency",
+        "recommendations": [
+            "CALL EMERGENCY SERVICES IMMEDIATELY",
+            "Sepsis is life-threatening",
+            "Hospital treatment is required",
+            "Antibiotics and IV fluids may be needed",
+            "Do not delay care"
+        ]
+    },
+    "Gallstones": {
+        "symptoms": ["right_upper_abdominal_pain", "nausea", "vomiting", "back_pain", "indigestion", "bloating", "jaundice"],
+        "severity": "moderate",
+        "recommendations": [
+            "Medical evaluation may be needed",
+            "Avoid fatty trigger foods",
+            "Ultrasound may be recommended",
+            "Seek urgent care for fever or yellowing skin",
+            "Surgery may be needed for recurrent attacks"
+        ]
+    },
+    "Tension Headache": {
+        "symptoms": ["headache", "neck_pain", "scalp_tenderness", "fatigue", "difficulty_concentrating", "shoulder_pain"],
+        "severity": "mild",
+        "recommendations": [
+            "Rest and hydrate",
+            "Gentle stretching may help",
+            "Reduce screen strain",
+            "Use pain relief as directed",
+            "Seek care for sudden severe or unusual headache"
+        ]
+    },
+    "Cluster Headache": {
+        "symptoms": ["severe_headache", "eye_pain", "watery_eyes", "nasal_congestion", "restlessness", "facial_sweating", "drooping_eyelid"],
+        "severity": "serious",
+        "recommendations": [
+            "Medical evaluation is recommended",
+            "Specific acute treatments may help",
+            "Avoid alcohol during clusters",
+            "Track timing and triggers",
+            "Seek urgent care for first or worst headache"
+        ]
+    }
+}
+
+EXPANDED_CONDITION_PATTERNS = {
+    "Bell Palsy": {
+        "symptoms": ["facial_droop", "facial_weakness", "drooling", "eye_dryness", "taste_changes", "ear_pain", "sensitivity_to_sound"],
+        "severity": "serious",
+        "recommendations": [
+            "Seek same-day medical evaluation",
+            "Stroke must be ruled out for sudden facial weakness",
+            "Protect the eye if it cannot close fully",
+            "Treatment works best when started early",
+            "Emergency care for arm weakness, speech difficulty, or confusion"
+        ]
+    },
+    "Diabetic Ketoacidosis": {
+        "symptoms": ["excessive_thirst", "frequent_urination", "nausea", "vomiting", "abdominal_pain", "deep_rapid_breathing", "fruity_breath", "confusion"],
+        "severity": "emergency",
+        "recommendations": [
+            "Seek emergency care immediately",
+            "Check blood glucose and ketones if available",
+            "Do not delay care for persistent vomiting or confusion",
+            "IV fluids and insulin may be required",
+            "Follow a clinician's diabetes sick-day plan"
+        ]
+    },
+    "Pneumothorax": {
+        "symptoms": ["sudden_chest_pain", "sudden_shortness_of_breath", "rapid_breathing", "rapid_heartbeat", "chest_tightness", "cyanosis", "fatigue"],
+        "severity": "emergency",
+        "recommendations": [
+            "Seek emergency care immediately",
+            "Avoid exertion",
+            "Oxygen and imaging may be needed",
+            "Treatment depends on severity",
+            "Call emergency services for severe breathing trouble"
+        ]
+    },
+    "Whooping Cough": {
+        "symptoms": ["paroxysmal_cough", "whooping_cough", "coughing_fits", "vomiting_after_cough", "runny_nose", "low_grade_fever", "fatigue"],
+        "severity": "serious",
+        "recommendations": [
+            "Contact a healthcare provider",
+            "Testing and antibiotics may be needed",
+            "Avoid contact with infants and pregnant people",
+            "Stay hydrated",
+            "Seek urgent care for breathing pauses or blue lips"
+        ]
+    },
+    "Laryngitis": {
+        "symptoms": ["hoarseness", "voice_loss", "sore_throat", "dry_cough", "throat_irritation", "difficulty_speaking"],
+        "severity": "mild",
+        "recommendations": [
+            "Rest your voice",
+            "Drink warm fluids",
+            "Avoid smoke and irritants",
+            "Use humidified air",
+            "Seek care if hoarseness lasts more than two weeks"
+        ]
+    },
+    "Peritonsillar Abscess": {
+        "symptoms": ["severe_sore_throat", "difficulty_swallowing", "fever", "muffled_voice", "drooling", "jaw_stiffness", "swollen_lymph_nodes"],
+        "severity": "serious",
+        "recommendations": [
+            "Seek urgent medical care",
+            "Drainage and antibiotics may be needed",
+            "Do not delay care if swallowing is difficult",
+            "Emergency care for breathing difficulty",
+            "Maintain fluids if safe to swallow"
+        ]
+    },
+    "Oral Thrush": {
+        "symptoms": ["white_patches_in_mouth", "mouth_pain", "loss_of_taste", "dry_mouth", "cracking_corners_of_mouth", "difficulty_swallowing"],
+        "severity": "mild",
+        "recommendations": [
+            "Consult a healthcare provider or dentist",
+            "Antifungal treatment may be needed",
+            "Rinse mouth after inhaled steroid use",
+            "Keep dentures clean if used",
+            "Seek care for swallowing pain or recurrent symptoms"
+        ]
+    },
+    "Dry Eye Syndrome": {
+        "symptoms": ["dry_eyes", "eye_redness", "burning_eyes", "gritty_eyes", "blurred_vision", "watery_eyes", "light_sensitivity"],
+        "severity": "mild",
+        "recommendations": [
+            "Use lubricating eye drops if appropriate",
+            "Take screen breaks",
+            "Avoid smoke and wind exposure",
+            "Review medicines that may worsen dryness with a clinician",
+            "Seek care for pain, vision loss, or severe redness"
+        ]
+    },
+    "Otitis Externa": {
+        "symptoms": ["ear_pain", "itching_ear", "ear_discharge", "ear_fullness", "hearing_loss", "pain_with_ear_movement"],
+        "severity": "moderate",
+        "recommendations": [
+            "Keep the ear dry",
+            "Avoid inserting objects into the ear",
+            "Medical ear drops may be needed",
+            "Seek care for fever or spreading redness",
+            "Avoid swimming until improved"
+        ]
+    },
+    "Earwax Impaction": {
+        "symptoms": ["ear_fullness", "hearing_loss", "tinnitus", "ear_pain", "dizziness", "cough"],
+        "severity": "mild",
+        "recommendations": [
+            "Avoid cotton swabs deep in the ear",
+            "Consider clinician-approved wax softening drops",
+            "Seek care for pain, drainage, or sudden hearing loss",
+            "Professional removal may be needed",
+            "Do not irrigate if eardrum injury is possible"
+        ]
+    },
+    "Epistaxis": {
+        "symptoms": ["nosebleeds", "blood_from_nose", "nasal_dryness", "dizziness", "pale_skin"],
+        "severity": "moderate",
+        "recommendations": [
+            "Sit upright and lean forward",
+            "Pinch the soft part of the nose",
+            "Avoid nose blowing after bleeding stops",
+            "Seek urgent care for heavy or persistent bleeding",
+            "Review blood thinner use with a clinician"
+        ]
+    },
+    "Rosacea": {
+        "symptoms": ["facial_redness", "flushing", "papules", "skin_sensitivity", "visible_blood_vessels", "burning_skin", "eye_redness"],
+        "severity": "mild",
+        "recommendations": [
+            "Identify and avoid triggers",
+            "Use gentle skin care",
+            "Apply sunscreen daily",
+            "Medical creams or tablets may help",
+            "Seek care for eye irritation"
+        ]
+    },
+    "Impetigo": {
+        "symptoms": ["skin_lesions", "crusting", "blisters", "itching", "skin_redness", "oozing_sores"],
+        "severity": "moderate",
+        "recommendations": [
+            "Seek medical care for diagnosis",
+            "Antibiotic treatment may be needed",
+            "Avoid scratching",
+            "Do not share towels or bedding",
+            "Keep sores covered when possible"
+        ]
+    },
+    "Seborrheic Dermatitis": {
+        "symptoms": ["scaling", "itching", "skin_redness", "flaky_scalp", "greasy_skin", "crusting"],
+        "severity": "mild",
+        "recommendations": [
+            "Use medicated shampoo as directed",
+            "Keep affected areas clean",
+            "Avoid harsh skin products",
+            "Treatment may need maintenance",
+            "Seek care if widespread or infected"
+        ]
+    },
+    "Allergic Contact Dermatitis": {
+        "symptoms": ["itching", "rash", "skin_redness", "blisters", "swelling", "burning_skin", "dry_skin"],
+        "severity": "mild",
+        "recommendations": [
+            "Avoid the suspected trigger",
+            "Wash exposed skin gently",
+            "Use cool compresses",
+            "Antihistamines or topical treatments may help",
+            "Seek urgent care for face swelling or breathing trouble"
+        ]
+    },
+    "Vaginal Yeast Infection": {
+        "symptoms": ["vaginal_itching", "vaginal_discharge", "burning", "painful_urination", "vaginal_redness", "painful_intercourse"],
+        "severity": "mild",
+        "recommendations": [
+            "Consult a clinician if symptoms are new",
+            "Antifungal treatment may help",
+            "Avoid irritants and douching",
+            "Seek care during pregnancy",
+            "Evaluate recurrent symptoms"
+        ]
+    },
+    "Bacterial Vaginosis": {
+        "symptoms": ["vaginal_discharge", "fishy_odor", "vaginal_itching", "burning", "painful_urination"],
+        "severity": "moderate",
+        "recommendations": [
+            "Medical evaluation can confirm diagnosis",
+            "Antibiotics may be prescribed",
+            "Avoid douching",
+            "Seek care during pregnancy",
+            "Return if symptoms recur"
+        ]
+    },
+    "Premenstrual Syndrome": {
+        "symptoms": ["premenstrual_symptoms", "mood_swings", "bloating", "breast_pain", "headache", "fatigue", "irritability", "food_cravings"],
+        "severity": "mild",
+        "recommendations": [
+            "Track symptoms with the menstrual cycle",
+            "Regular exercise and sleep may help",
+            "Limit salt, caffeine, and alcohol if they worsen symptoms",
+            "Discuss severe mood symptoms with a clinician",
+            "Seek urgent help for self-harm thoughts"
+        ]
+    },
+    "Mastitis": {
+        "symptoms": ["breast_pain", "breast_swelling", "skin_redness", "fever", "chills", "fatigue", "warm_skin"],
+        "severity": "moderate",
+        "recommendations": [
+            "Contact a healthcare provider",
+            "Continue feeding or pumping if advised",
+            "Use warm compresses",
+            "Antibiotics may be needed",
+            "Seek urgent care for abscess signs or worsening fever"
+        ]
+    },
+    "Hypotension": {
+        "symptoms": ["low_blood_pressure", "dizziness", "fainting", "blurred_vision", "nausea", "fatigue", "confusion", "cold_skin"],
+        "severity": "moderate",
+        "recommendations": [
+            "Sit or lie down if dizzy",
+            "Hydrate if safe",
+            "Review medications with a clinician",
+            "Seek urgent care for fainting, chest pain, or confusion",
+            "Monitor blood pressure if available"
+        ]
+    },
+    "Hyperkalemia": {
+        "symptoms": ["muscle_weakness", "palpitations", "nausea", "chest_pain", "shortness_of_breath", "irregular_heartbeat"],
+        "severity": "serious",
+        "recommendations": [
+            "Seek medical evaluation promptly",
+            "Blood testing and ECG may be needed",
+            "Review kidney disease and medication risks",
+            "Emergency care for chest pain or severe weakness",
+            "Do not self-treat with supplements"
+        ]
+    },
+    "Hypokalemia": {
+        "symptoms": ["muscle_weakness", "muscle_cramps", "fatigue", "constipation", "palpitations", "tingling"],
+        "severity": "moderate",
+        "recommendations": [
+            "Medical testing may be needed",
+            "Review vomiting, diarrhea, and medication causes",
+            "Use potassium supplements only as directed",
+            "Seek urgent care for severe weakness or palpitations",
+            "Stay hydrated"
+        ]
+    },
+    "Raynaud Phenomenon": {
+        "symptoms": ["cold_hands", "cold_feet", "color_changes_in_fingers", "numbness", "tingling", "finger_pain"],
+        "severity": "mild",
+        "recommendations": [
+            "Keep hands and feet warm",
+            "Avoid smoking and cold exposure",
+            "Manage stress triggers",
+            "Seek care for sores or severe pain",
+            "Evaluation may be needed if symptoms are new"
+        ]
+    },
+    "Plantar Fasciitis": {
+        "symptoms": ["heel_pain", "foot_pain", "morning_stiffness", "pain_with_walking", "tenderness"],
+        "severity": "mild",
+        "recommendations": [
+            "Rest from aggravating activity",
+            "Stretch calves and foot gently",
+            "Use supportive footwear",
+            "Ice after activity",
+            "Seek care if pain persists or walking is difficult"
+        ]
+    },
+    "Trigeminal Neuralgia": {
+        "symptoms": ["facial_pain", "electric_shock_pain", "jaw_pain", "tooth_pain", "pain_triggered_by_touch"],
+        "severity": "serious",
+        "recommendations": [
+            "Schedule medical evaluation",
+            "Specific nerve pain treatments may help",
+            "Dental causes may need to be ruled out",
+            "Track triggers and pain episodes",
+            "Seek urgent care for weakness, numbness, or new neurological symptoms"
+        ]
+    },
+    "H. pylori Gastritis": {
+        "symptoms": ["abdominal_pain", "bloating", "nausea", "loss_of_appetite", "belching", "heartburn", "early_satiety"],
+        "severity": "moderate",
+        "recommendations": [
+            "Testing may be needed",
+            "Antibiotic combination therapy may be prescribed",
+            "Avoid NSAIDs unless directed",
+            "Seek urgent care for black stool or vomiting blood",
+            "Complete the full treatment if prescribed"
+        ]
+    },
+    "Acute Gastrointestinal Bleeding": {
+        "symptoms": ["blood_in_stool", "black_stool", "vomiting_blood", "dizziness", "weakness", "pale_skin", "rapid_heartbeat"],
+        "severity": "emergency",
+        "recommendations": [
+            "Seek emergency care immediately",
+            "Do not ignore black stool or vomiting blood",
+            "Avoid NSAIDs unless directed",
+            "Hospital evaluation may be required",
+            "Call emergency services for fainting or severe weakness"
+        ]
+    },
+    "Alcohol Withdrawal": {
+        "symptoms": ["tremors", "anxiety", "sweating", "nausea", "vomiting", "insomnia", "rapid_heartbeat", "seizures", "hallucinations"],
+        "severity": "serious",
+        "recommendations": [
+            "Medical supervision may be needed",
+            "Seek urgent care for seizures, confusion, or hallucinations",
+            "Do not stop heavy alcohol use abruptly without guidance",
+            "Stay hydrated if safe",
+            "Support and treatment programs can help"
+        ]
+    },
+    "Zika Virus Infection": {
+        "symptoms": ["fever", "rash", "joint_pain", "eye_redness", "headache", "muscle_pain"],
+        "severity": "moderate",
+        "recommendations": [
+            "Rest and drink fluids",
+            "Avoid mosquito bites to reduce spread",
+            "Discuss pregnancy or travel exposure with a clinician",
+            "Use pain relief as directed",
+            "Seek care for severe symptoms or neurological changes"
+        ]
+    }
+}
+
+EXTRA_CONDITION_PATTERNS.update(EXPANDED_CONDITION_PATTERNS)
+CONDITION_PATTERNS.update(EXTRA_CONDITION_PATTERNS)
+
+CONDITION_SYMPTOM_EXTENSIONS = {
+    "Stroke": [
+        "facial_droop",
+        "facial_drooping",
+        "one_sided_weakness",
+        "arm_weakness",
+        "leg_weakness",
+        "numbness_one_side"
+    ],
+    "Bell Palsy": [
+        "facial_drooping"
+    ],
+    "Heart Disease": [
+        "chest_pressure",
+        "radiating_arm_pain",
+        "jaw_pain",
+        "lightheadedness"
+    ],
+    "Pulmonary Embolism": [
+        "sudden_chest_pain",
+        "sudden_shortness_of_breath"
+    ],
+    "Hypotension": [
+        "presyncope"
+    ]
+}
+
+for condition, symptoms in CONDITION_SYMPTOM_EXTENSIONS.items():
+    if condition in CONDITION_PATTERNS:
+        for symptom in symptoms:
+            if symptom not in CONDITION_PATTERNS[condition]["symptoms"]:
+                CONDITION_PATTERNS[condition]["symptoms"].append(symptom)
+
+# Ensure every symptom referenced by any condition becomes a model feature.
+for symptom in sorted({s for p in CONDITION_PATTERNS.values() for s in p["symptoms"]}):
+    if symptom not in SYMPTOMS:
+        SYMPTOMS.append(symptom)
+
+DEFAULT_NUM_SAMPLES = 8000
+
+def generate_training_data(num_samples: int = DEFAULT_NUM_SAMPLES) -> List[Dict]:
     """Generate synthetic training data (enterprise-level with comprehensive coverage)"""
     data = []
     
@@ -1136,7 +1889,8 @@ def generate_training_data(num_samples: int = 5000) -> List[Dict]:
 
 def save_dataset(filename: str = "symptom_condition_data.json"):
     """Generate and save dataset"""
-    data = generate_training_data(5000)  # Enterprise dataset
+    random.seed(42)
+    data = generate_training_data(DEFAULT_NUM_SAMPLES)  # Enterprise dataset
     
     with open(filename, 'w') as f:
         json.dump({
